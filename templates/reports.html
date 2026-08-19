@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Reports{% endblock %}
+{% block content %}
+
+<h3 class="mb-3">Profit &amp; Loss Report</h3>
+
+<form class="row g-2 mb-4" method="get">
+  <div class="col-md-3">
+    <label class="form-label small">From</label>
+    <input type="date" name="from" value="{{ date_from }}" class="form-control">
+  </div>
+  <div class="col-md-3">
+    <label class="form-label small">To</label>
+    <input type="date" name="to" value="{{ date_to }}" class="form-control">
+  </div>
+  <div class="col-md-2 d-flex align-items-end">
+    <button class="btn btn-outline-secondary" type="submit"><i class="bi bi-funnel me-1"></i>Apply</button>
+  </div>
+</form>
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="card stat-card h-100"><div class="card-body">
+      <div class="text-muted small">Revenue</div>
+      <div class="fs-4 fw-bold">{{ CURRENCY }}{{ "%.2f"|format(total_revenue) }}</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card stat-card h-100"><div class="card-body">
+      <div class="text-muted small">Cost of Goods Sold</div>
+      <div class="fs-4 fw-bold">{{ CURRENCY }}{{ "%.2f"|format(total_cogs) }}</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card stat-card h-100"><div class="card-body">
+      <div class="text-muted small">Advertising Spend</div>
+      <div class="fs-4 fw-bold">{{ CURRENCY }}{{ "%.2f"|format(ad_spend) }}</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card stat-card h-100"><div class="card-body">
+      <div class="text-muted small">Net Profit / Loss</div>
+      <div class="fs-4 fw-bold {{ 'text-success' if net_profit >= 0 else 'text-danger' }}">{{ CURRENCY }}{{ "%.2f"|format(net_profit) }}</div>
+    </div></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header fw-semibold">Profit by Item</div>
+  <div class="table-responsive">
+    <table class="table table-hover mb-0 align-middle">
+      <thead class="table-light">
+        <tr><th>Item</th><th>Units Sold</th><th>Revenue</th><th>COGS</th><th>Profit</th></tr>
+      </thead>
+      <tbody>
+        {% for r in per_item %}
+        <tr>
+          <td>{{ r.name }}{% if r.size %} <span class="text-muted small">({{ r.size }}{% if r.color %}, {{ r.color }}{% endif %})</span>{% endif %}</td>
+          <td>{{ r.units_sold }}</td>
+          <td>{{ CURRENCY }}{{ "%.2f"|format(r.revenue or 0) }}</td>
+          <td>{{ CURRENCY }}{{ "%.2f"|format(r.cogs or 0) }}</td>
+          <td class="{{ 'text-success' if (r.revenue or 0) - (r.cogs or 0) >= 0 else 'text-danger' }}">
+            {{ CURRENCY }}{{ "%.2f"|format((r.revenue or 0) - (r.cogs or 0)) }}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted py-4">No sales in this period.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

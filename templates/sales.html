@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Sales{% endblock %}
+{% block content %}
+
+<h3 class="mb-3">Sales</h3>
+
+<div class="card mb-4">
+  <div class="card-header fw-semibold">Record a Sale</div>
+  <div class="card-body">
+    <form method="post" action="{{ url_for('sale_new') }}" class="row g-2 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label small">Item</label>
+        <select name="item_id" class="form-select" required onchange="fillPrice(this)">
+          <option value="">Select item...</option>
+          {% for i in items %}
+          <option value="{{ i.id }}" data-price="{{ i.sell_price }}" {{ 'disabled' if i.quantity <= 0 }}>
+            {{ i.name }}{% if i.size %} ({{ i.size }}{% if i.color %}, {{ i.color }}{% endif %}){% endif %} — {{ i.quantity }} in stock
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Quantity</label>
+        <input type="number" name="quantity" min="1" value="1" class="form-control" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Sale price ({{ CURRENCY }}) / unit</label>
+        <input type="number" step="0.01" min="0" name="sale_price" id="salePriceInput" class="form-control">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Sale date</label>
+        <input type="date" name="sale_date" value="{{ today }}" class="form-control">
+      </div>
+      <div class="col-md-2 d-grid">
+        <button class="btn btn-primary" type="submit"><i class="bi bi-cart-plus me-1"></i>Record Sale</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header fw-semibold">Sales History</div>
+  <div class="table-responsive">
+    <table class="table table-hover mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Date</th><th>Item</th><th>Qty</th><th>Price/unit</th><th>Total</th><th>Profit</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in sales %}
+        <tr>
+          <td>{{ s.sale_date }}</td>
+          <td>{{ s.item_name }}{% if s.item_size %} <span class="text-muted small">({{ s.item_size }}{% if s.item_color %}, {{ s.item_color }}{% endif %})</span>{% endif %}</td>
+          <td>{{ s.quantity }}</td>
+          <td>{{ CURRENCY }}{{ "%.2f"|format(s.sale_price) }}</td>
+          <td>{{ CURRENCY }}{{ "%.2f"|format(s.quantity * s.sale_price) }}</td>
+          <td class="{{ 'text-success' if (s.sale_price - s.item_cost_price) >= 0 else 'text-danger' }}">
+            {{ CURRENCY }}{{ "%.2f"|format((s.sale_price - s.item_cost_price) * s.quantity) }}
+          </td>
+          <td class="text-end">
+            <form method="post" action="{{ url_for('sale_delete', sale_id=s.id) }}" onsubmit="return confirm('Delete this sale and restore stock?');">
+              <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-center text-muted py-4">No sales recorded yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+function fillPrice(sel) {
+  const opt = sel.options[sel.selectedIndex];
+  const price = opt.getAttribute('data-price');
+  if (price) document.getElementById('salePriceInput').value = price;
+}
+</script>
+
+{% endblock %}

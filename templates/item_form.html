@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit Item' if item else 'Add Item' }}{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3 class="mb-0">{{ 'Edit Item' if item else 'Add Item' }}</h3>
+  <a href="{{ url_for('items_list') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Back to Items</a>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post" enctype="multipart/form-data">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label">Item name *</label>
+          <input type="text" name="name" class="form-control" required value="{{ item.name if item else '' }}">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Category</label>
+          <input type="text" name="category" list="categoryOptions" class="form-control" placeholder="Choose or type your own" value="{{ item.category if item else '' }}">
+          <datalist id="categoryOptions">
+            <option value="Jeans">
+            <option value="T-shirt">
+            <option value="Long Shirt">
+            <option value="Trousers">
+          </datalist>
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label">Size</label>
+          <input type="text" name="size" list="sizeOptions" class="form-control" placeholder="Choose or type your own" value="{{ item.size if item else '' }}">
+          <datalist id="sizeOptions">
+            <option value="S">
+            <option value="M">
+            <option value="L">
+            <option value="XL">
+            <option value="2XL">
+            <option value="3XL">
+            <option value="4XL">
+            {% for n in range(28, 43) %}
+            <option value="{{ n }}">
+            {% endfor %}
+          </datalist>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Color</label>
+          <input type="text" name="color" class="form-control" placeholder="e.g. Navy" value="{{ item.color if item else '' }}">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Quantity in stock *</label>
+          <input type="number" name="quantity" min="0" class="form-control" required value="{{ item.quantity if item else 0 }}">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Date added</label>
+          <input type="date" name="date_added" class="form-control" value="{{ item.date_added if item else today }}">
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label">Cost price ({{ CURRENCY }}) *</label>
+          <input type="number" step="0.01" min="0" name="cost_price" class="form-control" required value="{{ item.cost_price if item else '' }}">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Sell price ({{ CURRENCY }}) *</label>
+          <input type="number" step="0.01" min="0" name="sell_price" class="form-control" required value="{{ item.sell_price if item else '' }}">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Star rating</label>
+          {% set current_rating = item.star_rating if item else 0 %}
+          <select name="star_rating" class="form-select">
+            <option value="0" {{ 'selected' if current_rating == 0 }}>No rating</option>
+            {% for n in range(1, 6) %}
+            <option value="{{ n }}" {{ 'selected' if current_rating == n }}>{{ '★' * n }}{{ '☆' * (5 - n) }} ({{ n }})</option>
+            {% endfor %}
+          </select>
+          <div class="form-text">4-5 stars shows the item as a Best Seller on the dashboard.</div>
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label">Photo</label>
+          <input type="file" name="photo" accept=".png,.jpg,.jpeg,.gif,.webp" class="form-control">
+          {% if item and item.image_filename %}
+          <div class="mt-2 d-flex align-items-center gap-2">
+            <img src="{{ photo_url(item.image_filename) }}" style="height:60px;border-radius:6px;object-fit:cover;">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="remove_photo" id="removePhoto">
+              <label class="form-check-label small" for="removePhoto">Remove current photo</label>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Notes</label>
+          <textarea name="notes" class="form-control" rows="2">{{ item.notes if item else '' }}</textarea>
+        </div>
+      </div>
+
+      <div class="mt-4">
+        <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>{{ 'Save Changes' if item else 'Add Item' }}</button>
+        <a href="{{ url_for('items_list') }}" class="btn btn-link">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

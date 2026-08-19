@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Advertising{% endblock %}
+{% block content %}
+
+<h3 class="mb-3">Advertising Spend</h3>
+
+<div class="card mb-4">
+  <div class="card-header fw-semibold">Log an Expense</div>
+  <div class="card-body">
+    <form method="post" action="{{ url_for('advertising_new') }}" class="row g-2 align-items-end">
+      <div class="col-md-3">
+        <label class="form-label small">Date</label>
+        <input type="date" name="expense_date" value="{{ today }}" class="form-control">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small">Platform</label>
+        <input type="text" name="platform" class="form-control" placeholder="Facebook, TikTok, Instagram...">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label small">Description</label>
+        <input type="text" name="description" class="form-control" placeholder="e.g. Boost post for new collection">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Amount ({{ CURRENCY }})</label>
+        <input type="number" step="0.01" min="0" name="amount" class="form-control" required>
+      </div>
+      <div class="col-12 d-grid mt-2">
+        <button class="btn btn-primary" type="submit"><i class="bi bi-plus-lg me-1"></i>Add Expense</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header d-flex justify-content-between fw-semibold">
+    <span>Expense History</span>
+    <span>Total: {{ CURRENCY }}{{ "%.2f"|format(total) }}</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover mb-0 align-middle">
+      <thead class="table-light">
+        <tr><th>Date</th><th>Platform</th><th>Description</th><th>Amount</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for e in expenses %}
+        <tr>
+          <td>{{ e.expense_date }}</td>
+          <td>{{ e.platform }}</td>
+          <td>{{ e.description }}</td>
+          <td>{{ CURRENCY }}{{ "%.2f"|format(e.amount) }}</td>
+          <td class="text-end">
+            <form method="post" action="{{ url_for('advertising_delete', expense_id=e.id) }}" onsubmit="return confirm('Delete this expense?');">
+              <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted py-4">No advertising expenses logged yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

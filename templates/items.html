@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Items{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3 class="mb-0">Items</h3>
+  <a href="{{ url_for('item_new') }}" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Add Item</a>
+</div>
+
+<form class="row g-2 mb-4" method="get">
+  <div class="col-md-4">
+    <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Search name, category, size, color...">
+  </div>
+  <div class="col-md-3">
+    <select name="category" class="form-select">
+      <option value="">All categories</option>
+      {% for c in categories %}
+      <option value="{{ c.category }}" {{ 'selected' if c.category == category }}>{{ c.category }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-3">
+    <select name="status" class="form-select">
+      <option value="all" {{ 'selected' if status=='all' }}>All statuses</option>
+      <option value="in_stock" {{ 'selected' if status=='in_stock' }}>In stock</option>
+      <option value="out_of_stock" {{ 'selected' if status=='out_of_stock' }}>Out of stock</option>
+      <option value="low_stock" {{ 'selected' if status=='low_stock' }}>Low stock (&le; {{ low_stock_threshold }})</option>
+      <option value="best_seller" {{ 'selected' if status=='best_seller' }}>Best sellers (4-5&#9733;)</option>
+    </select>
+  </div>
+  <div class="col-md-2 d-grid">
+    <button class="btn btn-outline-secondary" type="submit"><i class="bi bi-funnel me-1"></i>Filter</button>
+  </div>
+</form>
+
+<div class="row g-3">
+  {% for item in items %}
+  <div class="col-6 col-md-4 col-lg-3">
+    <div class="card item-card h-100">
+      <div class="item-photo-wrap">
+        {% if item.image_filename %}
+        <img src="{{ photo_url(item.image_filename) }}" class="item-photo" alt="{{ item.name }}">
+        {% else %}
+        <div class="item-photo item-photo-placeholder"><i class="bi bi-image"></i></div>
+        {% endif %}
+        {% if item.star_rating >= 4 %}
+        <span class="badge bg-warning text-dark best-badge"><i class="bi bi-star-fill"></i> Best Seller</span>
+        {% endif %}
+        {% if item.quantity <= 0 %}
+        <span class="badge bg-danger stock-badge">Out of stock</span>
+        {% elif item.quantity <= low_stock_threshold %}
+        <span class="badge bg-warning text-dark stock-badge">Low: {{ item.quantity }}</span>
+        {% else %}
+        <span class="badge bg-success stock-badge">In stock: {{ item.quantity }}</span>
+        {% endif %}
+      </div>
+      <div class="card-body">
+        <h6 class="card-title mb-1">{{ item.name }}</h6>
+        <div class="text-muted small mb-2">
+          {% if item.category %}{{ item.category }}{% endif %}
+          {% if item.size %} · Size {{ item.size }}{% endif %}
+          {% if item.color %} · {{ item.color }}{% endif %}
+        </div>
+        <div class="d-flex justify-content-between small mb-2">
+          <span>Cost: {{ CURRENCY }}{{ "%.2f"|format(item.cost_price) }}</span>
+          <span>Sell: {{ CURRENCY }}{{ "%.2f"|format(item.sell_price) }}</span>
+        </div>
+        <div class="text-muted small mb-2">Added {{ item.date_added }}</div>
+      </div>
+      <div class="card-footer bg-white">
+        <form method="post" action="{{ url_for('item_set_rating', item_id=item.id) }}" class="star-rate-form mb-2" title="Click a star to rate; click it again to clear">
+          {% for n in range(1, 6) %}
+          <button type="submit" name="star" value="{{ n }}" class="star-btn {{ 'filled' if n <= item.star_rating }}">
+            <i class="bi {{ 'bi-star-fill' if n <= item.star_rating else 'bi-star' }}"></i>
+          </button>
+          {% endfor %}
+        </form>
+        <div class="d-flex justify-content-end">
+          <a href="{{ url_for('item_edit', item_id=item.id) }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil"></i></a>
+          <form method="post" action="{{ url_for('item_delete', item_id=item.id) }}" class="d-inline ms-1" onsubmit="return confirm('Delete {{ item.name }}? This cannot be undone.');">
+            <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="col-12">
+    <div class="alert alert-light border text-center py-5">
+      <i class="bi bi-box-seam fs-1 text-muted d-block mb-2"></i>
+      No items found. <a href="{{ url_for('item_new') }}">Add your first item</a>.
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% endblock %}

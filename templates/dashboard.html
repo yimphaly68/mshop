@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h3 class="mb-0">Dashboard</h3>
+  <a href="{{ url_for('item_new') }}" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Add Item</a>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="card stat-card h-100">
+      <div class="card-body">
+        <div class="text-muted small">Total Items</div>
+        <div class="fs-3 fw-bold">{{ total_items }}</div>
+        <div class="text-muted small">{{ total_units }} units in stock</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card stat-card h-100">
+      <div class="card-body">
+        <div class="text-muted small">Stock Value (cost)</div>
+        <div class="fs-3 fw-bold">{{ CURRENCY }}{{ "%.2f"|format(stock_value_cost) }}</div>
+        <div class="text-muted small">Retail {{ CURRENCY }}{{ "%.2f"|format(stock_value_retail) }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card stat-card h-100">
+      <div class="card-body">
+        <div class="text-muted small">Out of Stock</div>
+        <div class="fs-3 fw-bold text-danger">{{ out_of_stock|length }}</div>
+        <div class="text-muted small">{{ low_stock|length }} low stock</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card stat-card h-100">
+      <div class="card-body">
+        <div class="text-muted small">Net Profit / Loss</div>
+        <div class="fs-3 fw-bold {{ 'text-success' if net_profit >= 0 else 'text-danger' }}">
+          {{ CURRENCY }}{{ "%.2f"|format(net_profit) }}
+        </div>
+        <div class="text-muted small">after ad spend</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-8">
+    <div class="card h-100">
+      <div class="card-header fw-semibold">Profit &amp; Loss Summary</div>
+      <div class="card-body">
+        <table class="table table-sm mb-0">
+          <tbody>
+            <tr><td>Revenue ({{ units_sold }} units sold)</td><td class="text-end">{{ CURRENCY }}{{ "%.2f"|format(revenue) }}</td></tr>
+            <tr><td>Cost of goods sold</td><td class="text-end text-danger">-{{ CURRENCY }}{{ "%.2f"|format(cogs) }}</td></tr>
+            <tr class="border-top"><td class="fw-semibold">Gross profit</td><td class="text-end fw-semibold">{{ CURRENCY }}{{ "%.2f"|format(gross_profit) }}</td></tr>
+            <tr><td>Advertising spend</td><td class="text-end text-danger">-{{ CURRENCY }}{{ "%.2f"|format(ad_spend) }}</td></tr>
+            <tr class="border-top">
+              <td class="fw-bold">Net profit / loss</td>
+              <td class="text-end fw-bold {{ 'text-success' if net_profit >= 0 else 'text-danger' }}">{{ CURRENCY }}{{ "%.2f"|format(net_profit) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card-footer text-end">
+        <a href="{{ url_for('reports') }}" class="small">View full reports <i class="bi bi-arrow-right"></i></a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-header fw-semibold"><i class="bi bi-star-fill text-warning me-1"></i>Best Sellers (4-5&#9733;)</div>
+      <ul class="list-group list-group-flush">
+        {% for item in best_sellers %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          <span>
+            {{ item.name }} {% if item.size %}<span class="text-muted small">({{ item.size }}{% if item.color %}, {{ item.color }}{% endif %})</span>{% endif %}
+            <br><span class="text-warning small">{{ '★' * item.star_rating }}{{ '☆' * (5 - item.star_rating) }}</span>
+          </span>
+          <span class="badge bg-secondary">{{ item.quantity }} left</span>
+        </li>
+        {% else %}
+        <li class="list-group-item text-muted">No best sellers yet. Rate an item 4-5 stars on the Items page.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header fw-semibold"><i class="bi bi-exclamation-triangle text-danger me-1"></i>Out of Stock / Low Stock</div>
+      <ul class="list-group list-group-flush">
+        {% for item in out_of_stock %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          <span>{{ item.name }} {% if item.size %}<span class="text-muted small">({{ item.size }}{% if item.color %}, {{ item.color }}{% endif %})</span>{% endif %}</span>
+          <span class="badge bg-danger">out of stock</span>
+        </li>
+        {% endfor %}
+        {% for item in low_stock %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          <span>{{ item.name }} {% if item.size %}<span class="text-muted small">({{ item.size }}{% if item.color %}, {{ item.color }}{% endif %})</span>{% endif %}</span>
+          <span class="badge bg-warning text-dark">{{ item.quantity }} left</span>
+        </li>
+        {% endfor %}
+        {% if not out_of_stock and not low_stock %}
+        <li class="list-group-item text-muted">Everything is well stocked.</li>
+        {% endif %}
+      </ul>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header fw-semibold"><i class="bi bi-clock-history me-1"></i>Recent Sales</div>
+      <ul class="list-group list-group-flush">
+        {% for s in recent_sales %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          <span>{{ s.sale_date }} — {{ s.quantity }} x {{ s.item_name }}</span>
+          <span class="fw-semibold">{{ CURRENCY }}{{ "%.2f"|format(s.quantity * s.sale_price) }}</span>
+        </li>
+        {% else %}
+        <li class="list-group-item text-muted">No sales recorded yet.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
