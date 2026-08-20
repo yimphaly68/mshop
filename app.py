@@ -1,12 +1,14 @@
 import os
 import uuid
 from datetime import date
+from functools import wraps
 
 import cloudinary
 import cloudinary.uploader
 from dotenv import load_dotenv
-from flask import Flask, g, render_template, request, redirect, url_for, flash
+from flask import Flask, Response, g, render_template, request, redirect, url_for, flash
 from sqlalchemy import text
+from werkzeug.security import check_password_hash
 from werkzeug.utils import secure_filename
 
 from db import engine, init_db
@@ -31,6 +33,56 @@ app.jinja_env.globals["CURRENCY"] = CURRENCY
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 init_db()
+
+
+# ---------------------------------------------------------------------------
+# Auth (HTTP Basic Auth) — set the env vars below to require a login.
+# Left unset, the app runs with no login, same as local development always has.
+# ---------------------------------------------------------------------------
+
+AUTH_USERS = {}  # username -> {"password_hash": ..., "is_admin": bool}
+if os.environ.get("AUTH_ADMIN_USERNAME") and os.environ.get("AUTH_ADMIN_PASSWORD_HASH"):
+    AUTH_USERS[os.environ["AUTH_ADMIN_USERNAME"]] = {
+        "password_hash": os.environ["AUTH_ADMIN_PASSWORD_HASH"],
+        "is_admin": True,
+    }
+if os.environ.get("AUTH_STAFF_USERNAME") and os.environ.get("AUTH_STAFF_PASSWORD_HASH"):
+    AUTH_USERS[os.environ["AUTH_STAFF_USERNAME"]] = {
+        "password_hash": os.environ["AUTH_STAFF_PASSWORD_HASH"],
+        "is_admin": False,
+    }
+
+
+def _auth_challenge():
+    return Response(
+        "Login required.", 401, {"WWW-Authenticate": 'Basic realm="MyM Shop Stock"'}
+    )
+
+
+@app.before_request
+def require_login():
+    if not AUTH_USERS:
+        return  # auth disabled (no users configured)
+    auth = request.authorization
+    user = AUTH_USERS.get(auth.username) if auth else None
+    if not user or not check_password_hash(user["password_hash"], auth.password):
+        return _auth_challenge()
+    g.username = auth.username
+    g.is_admin = user["is_admin"]
+
+
+def admin_required(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if AUTH_USERS and not g.get("is_admin", False):
+            flash("Only an admin can do that.", "danger")
+            return redirect(request.referrer or url_for("dashboard"))
+        return view(*args, **kwargs)
+    return wrapped
+
+
+app.jinja_env.globals["current_username"] = lambda: g.get("username")
+app.jinja_env.globals["is_admin"] = lambda: g.get("is_admin", not AUTH_USERS)
 
 
 def get_db():
@@ -289,6 +341,7 @@ def item_edit(item_id):
 
 
 @app.route("/items/<int:item_id>/delete", methods=["POST"])
+@admin_required
 def item_delete(item_id):
     db = get_db()
     item = db.execute(text("SELECT * FROM items WHERE id = :id"), {"id": item_id}).mappings().first()
@@ -369,6 +422,7 @@ def sale_new():
 
 
 @app.route("/sales/<int:sale_id>/delete", methods=["POST"])
+@admin_required
 def sale_delete(sale_id):
     db = get_db()
     sale = db.execute(text("SELECT * FROM sales WHERE id = :id"), {"id": sale_id}).mappings().first()
@@ -417,6 +471,7 @@ def advertising_new():
 
 
 @app.route("/advertising/<int:expense_id>/delete", methods=["POST"])
+@admin_required
 def advertising_delete(expense_id):
     db = get_db()
     db.execute(text("DELETE FROM advertising WHERE id = :id"), {"id": expense_id})
@@ -478,6 +533,11 @@ def reports():
         date_from=date_from,
         date_to=date_to,
     )
+
+
+@app.route("/logout")
+def logout():
+    return _auth_challenge()
 
 
 if __name__ == "__main__":

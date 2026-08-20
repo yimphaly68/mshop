@@ -49,9 +49,11 @@
           <td>{{ e.description }}</td>
           <td>{{ CURRENCY }}{{ "%.2f"|format(e.amount) }}</td>
           <td class="text-end">
+            {% if is_admin() %}
             <form method="post" action="{{ url_for('advertising_delete', expense_id=e.id) }}" onsubmit="return confirm('Delete this expense?');">
               <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
             </form>
+            {% endif %}
           </td>
         </tr>
         {% else %}

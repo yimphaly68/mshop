@@ -77,9 +77,11 @@
         </form>
         <div class="d-flex justify-content-end">
           <a href="{{ url_for('item_edit', item_id=item.id) }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil"></i></a>
+          {% if is_admin() %}
           <form method="post" action="{{ url_for('item_delete', item_id=item.id) }}" class="d-inline ms-1" onsubmit="return confirm('Delete {{ item.name }}? This cannot be undone.');">
             <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
           </form>
+          {% endif %}
         </div>
       </div>
     </div>

@@ -59,9 +59,11 @@
             {{ CURRENCY }}{{ "%.2f"|format((s.sale_price - s.item_cost_price) * s.quantity) }}
           </td>
           <td class="text-end">
+            {% if is_admin() %}
             <form method="post" action="{{ url_for('sale_delete', sale_id=s.id) }}" onsubmit="return confirm('Delete this sale and restore stock?');">
               <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
             </form>
+            {% endif %}
           </td>
         </tr>
         {% else %}

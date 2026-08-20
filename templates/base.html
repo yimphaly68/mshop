@@ -24,6 +24,14 @@
         <li class="nav-item"><a class="nav-link {{ 'active' if request.endpoint=='sales_list' }}" href="{{ url_for('sales_list') }}"><i class="bi bi-cart-check me-1"></i>Sales</a></li>
         <li class="nav-item"><a class="nav-link {{ 'active' if request.endpoint=='advertising_list' }}" href="{{ url_for('advertising_list') }}"><i class="bi bi-megaphone me-1"></i>Advertising</a></li>
         <li class="nav-item"><a class="nav-link {{ 'active' if request.endpoint=='reports' }}" href="{{ url_for('reports') }}"><i class="bi bi-graph-up-arrow me-1"></i>Reports</a></li>
+        {% if current_username() %}
+        <li class="nav-item d-flex align-items-center ms-lg-3">
+          <span class="text-white-50 small me-2">
+            <i class="bi bi-person-circle me-1"></i>{{ current_username() }}{% if is_admin() %} (admin){% endif %}
+          </span>
+          <a class="btn btn-sm btn-outline-light" href="{{ url_for('logout') }}">Log out</a>
+        </li>
+        {% endif %}
       </ul>
     </div>
   </div>
