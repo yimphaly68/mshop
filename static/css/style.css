@@ -13,6 +13,31 @@ body {
   background: linear-gradient(90deg, var(--brand-dark), var(--brand));
 }
 
+.login-body {
+  background: linear-gradient(135deg, var(--brand-dark), var(--brand));
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-wrap {
+  width: 100%;
+  max-width: 420px;
+  padding: 1rem;
+}
+
+.login-card {
+  border: none;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+}
+
+.login-icon {
+  font-size: 2.5rem;
+  color: var(--brand);
+}
+
 .stat-card {
   border: none;
   border-radius: 14px;

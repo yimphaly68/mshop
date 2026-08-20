@@ -1,12 +1,12 @@
 import os
 import uuid
-from datetime import date
+from datetime import date, timedelta
 from functools import wraps
 
 import cloudinary
 import cloudinary.uploader
 from dotenv import load_dotenv
-from flask import Flask, Response, g, render_template, request, redirect, url_for, flash
+from flask import Flask, g, render_template, request, redirect, session, url_for, flash
 from sqlalchemy import text
 from werkzeug.security import check_password_hash
 from werkzeug.utils import secure_filename
@@ -29,6 +29,9 @@ if USE_CLOUDINARY:
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-stock-control-secret")
 app.config["MAX_CONTENT_LENGTH"] = 8 * 1024 * 1024  # 8 MB upload limit
+app.config["SESSION_COOKIE_SECURE"] = os.environ.get("SESSION_COOKIE_SECURE", "1") == "1"
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.permanent_session_lifetime = timedelta(days=30)
 app.jinja_env.globals["CURRENCY"] = CURRENCY
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -36,8 +39,8 @@ init_db()
 
 
 # ---------------------------------------------------------------------------
-# Auth (HTTP Basic Auth) — set the env vars below to require a login.
-# Left unset, the app runs with no login, same as local development always has.
+# Auth (login page + session cookie) — set the env vars below to require a
+# login. Left unset, the app runs with no login, same as local dev always has.
 # ---------------------------------------------------------------------------
 
 AUTH_USERS = {}  # username -> {"password_hash": ..., "is_admin": bool}
@@ -53,22 +56,33 @@ if os.environ.get("AUTH_STAFF_USERNAME") and os.environ.get("AUTH_STAFF_PASSWORD
     }
 
 
-def _auth_challenge():
-    return Response(
-        "Login required.", 401, {"WWW-Authenticate": 'Basic realm="MyM Shop Stock"'}
-    )
-
-
 @app.before_request
 def require_login():
-    if not AUTH_USERS:
-        return  # auth disabled (no users configured)
-    auth = request.authorization
-    user = AUTH_USERS.get(auth.username) if auth else None
-    if not user or not check_password_hash(user["password_hash"], auth.password):
-        return _auth_challenge()
-    g.username = auth.username
+    if not AUTH_USERS or request.endpoint in ("login", "static"):
+        return  # auth disabled, or this route doesn't need it
+    user = AUTH_USERS.get(session.get("username"))
+    if not user:
+        return redirect(url_for("login", next=request.path))
+    g.username = session["username"]
     g.is_admin = user["is_admin"]
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        username = request.form.get("username", "")
+        password = request.form.get("password", "")
+        user = AUTH_USERS.get(username)
+        if user and check_password_hash(user["password_hash"], password):
+            session.clear()
+            session.permanent = True
+            session["username"] = username
+            next_url = request.form.get("next", "")
+            if not next_url.startswith("/") or next_url.startswith("//"):
+                next_url = url_for("dashboard")
+            return redirect(next_url)
+        flash("Incorrect username or password.", "danger")
+    return render_template("login.html", next=request.args.get("next", ""))
 
 
 def admin_required(view):
@@ -537,7 +551,8 @@ def reports():
 
 @app.route("/logout")
 def logout():
-    return _auth_challenge()
+    session.clear()
+    return redirect(url_for("login"))
 
 
 if __name__ == "__main__":
