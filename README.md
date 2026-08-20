@@ -24,26 +24,42 @@ Press `Ctrl+C` in the terminal running `run.sh`.
 
 Edit the `CURRENCY` value near the top of `app.py`.
 
-## Deploying to production (Render)
+## Production deployment
 
-The app automatically switches to durable storage when these environment
-variables are set (copy `.env.example` to `.env` for local testing, or set
-them in Render's dashboard):
+**Live at:** https://mshop168.com
 
-- `DATABASE_URL` — a Postgres connection string (e.g. from a free [Supabase](https://supabase.com) project)
-- `CLOUDINARY_URL` — from a free [Cloudinary](https://cloudinary.com) account, for photo storage
-- `SECRET_KEY` — any random string
+Runs on a Hostinger VPS (`187.52.121.197`) under Docker Swarm, behind Traefik
+for automatic HTTPS (Let's Encrypt). Data (SQLite database + uploaded photos)
+lives on the VPS's persistent disk at `/opt/apps/mshop/data/`, so no external
+database or photo host is needed — the app's built-in local storage is used
+directly in production.
 
-### Steps
+### Deploying an update
 
-1. **Supabase**: create a free project, then copy the connection string from
-   Project Settings → Database → Connection string (use the "URI" format,
-   and adjust the scheme to `postgresql+psycopg://...`).
-2. **Cloudinary**: create a free account, copy the `CLOUDINARY_URL` value
-   from the Dashboard's "API Environment variable" box.
-3. **Render**: create a free Web Service pointed at this project's repo.
-   - Build command: `pip install -r requirements.txt`
-   - Start command: `gunicorn app:app` (already declared in `Procfile`)
-   - Add the three environment variables above in Render's dashboard.
-4. Once deployed, point your domain (`mshop168.com`) at Render by adding the
-   DNS records Render gives you under Settings → Custom Domain.
+```bash
+# 1. On your Mac, commit and push as usual
+git add -A
+git commit -m "describe your change"
+git push origin main
+
+# 2. On the VPS, pull + rebuild + roll out (zero downtime)
+ssh -i ~/.ssh/mshop_vps root@187.52.121.197 /opt/apps/mshop/redeploy.sh
+```
+
+### Useful commands on the VPS
+
+```bash
+# View live logs
+ssh -i ~/.ssh/mshop_vps root@187.52.121.197 "docker service logs -f mshop-app"
+
+# Check service status
+ssh -i ~/.ssh/mshop_vps root@187.52.121.197 "docker service ps mshop-app"
+```
+
+### Alternative: deploying elsewhere (e.g. Render)
+
+The app also supports a Postgres + Cloudinary backend for hosts without
+persistent disk (like Render's free tier), via environment variables — see
+`.env.example`. Set `DATABASE_URL` (Postgres) and `CLOUDINARY_URL` (photo
+storage) and the app automatically switches over; otherwise it uses local
+SQLite/file storage as it does on the VPS.
