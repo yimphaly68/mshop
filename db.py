@@ -12,6 +12,7 @@ from sqlalchemy import (
     Table,
     Text,
     create_engine,
+    event,
     text,
 )
 
@@ -22,6 +23,13 @@ DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{SQLITE_PATH}")
 
 os.makedirs(os.path.join(BASE_DIR, "instance"), exist_ok=True)
 engine = create_engine(DATABASE_URL, future=True)
+
+if engine.dialect.name == "sqlite":
+    @event.listens_for(engine, "connect")
+    def _enable_sqlite_foreign_keys(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys = ON")
+        cursor.close()
 
 metadata = MetaData()
 

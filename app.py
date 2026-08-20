@@ -294,6 +294,7 @@ def item_delete(item_id):
     item = db.execute(text("SELECT * FROM items WHERE id = :id"), {"id": item_id}).mappings().first()
     if item:
         delete_photo(item["image_filename"])
+        db.execute(text("DELETE FROM sales WHERE item_id = :id"), {"id": item_id})
         db.execute(text("DELETE FROM items WHERE id = :id"), {"id": item_id})
         db.commit()
         flash("Item deleted.", "success")
