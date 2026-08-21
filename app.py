@@ -189,13 +189,13 @@ def dashboard():
     )[:5]
 
     sales_summary = db.execute(text(
-        "SELECT COALESCE(SUM(quantity),0) AS units_sold, "
-        "COALESCE(SUM(quantity * sale_price),0) AS revenue "
+        "SELECT COALESCE(SUM(quantity - refunded_quantity),0) AS units_sold, "
+        "COALESCE(SUM((quantity - refunded_quantity) * sale_price),0) AS revenue "
         "FROM sales"
     )).mappings().one()
 
     cogs_row = db.execute(text(
-        "SELECT COALESCE(SUM(s.quantity * i.cost_price),0) AS cogs "
+        "SELECT COALESCE(SUM((s.quantity - s.refunded_quantity) * i.cost_price),0) AS cogs "
         "FROM sales s JOIN items i ON i.id = s.item_id"
     )).mappings().one()
 
@@ -394,8 +394,10 @@ def sales_list():
     db = get_db()
     sales = db.execute(text(
         "SELECT s.*, i.name AS item_name, i.size AS item_size, i.color AS item_color, "
-        "i.cost_price AS item_cost_price "
+        "i.cost_price AS item_cost_price, orig.name AS exchanged_from_item_name "
         "FROM sales s JOIN items i ON i.id = s.item_id "
+        "LEFT JOIN sales os ON os.id = s.exchanged_from_sale_id "
+        "LEFT JOIN items orig ON orig.id = os.item_id "
         "ORDER BY s.sale_date DESC, s.id DESC"
     )).mappings().all()
     items = db.execute(text("SELECT * FROM items ORDER BY name")).mappings().all()
@@ -441,13 +443,111 @@ def sale_delete(sale_id):
     db = get_db()
     sale = db.execute(text("SELECT * FROM sales WHERE id = :id"), {"id": sale_id}).mappings().first()
     if sale:
+        # Only restore stock for the portion that wasn't already refunded.
+        remaining = sale["quantity"] - sale["refunded_quantity"]
         db.execute(
             text("UPDATE items SET quantity = quantity + :quantity WHERE id = :id"),
-            {"quantity": sale["quantity"], "id": sale["item_id"]},
+            {"quantity": remaining, "id": sale["item_id"]},
         )
         db.execute(text("DELETE FROM sales WHERE id = :id"), {"id": sale_id})
         db.commit()
         flash("Sale removed and stock restored.", "success")
+    return redirect(url_for("sales_list"))
+
+
+@app.route("/sales/<int:sale_id>/refund", methods=["POST"])
+def sale_refund(sale_id):
+    db = get_db()
+    sale = db.execute(text("SELECT * FROM sales WHERE id = :id"), {"id": sale_id}).mappings().first()
+    if not sale:
+        flash("Sale not found.", "danger")
+        return redirect(url_for("sales_list"))
+
+    remaining = sale["quantity"] - sale["refunded_quantity"]
+    refund_qty = parse_int(request.form.get("refund_quantity"))
+
+    if refund_qty <= 0:
+        flash("Refund quantity must be greater than zero.", "danger")
+    elif refund_qty > remaining:
+        flash(f"Only {remaining} unit(s) from this sale can still be refunded.", "danger")
+    else:
+        db.execute(
+            text("UPDATE sales SET refunded_quantity = refunded_quantity + :qty WHERE id = :id"),
+            {"qty": refund_qty, "id": sale_id},
+        )
+        db.execute(
+            text("UPDATE items SET quantity = quantity + :qty WHERE id = :id"),
+            {"qty": refund_qty, "id": sale["item_id"]},
+        )
+        db.commit()
+        flash(f"Refunded {refund_qty} unit(s) — {CURRENCY}{refund_qty * sale['sale_price']:.2f}, stock restored.", "success")
+
+    return redirect(url_for("sales_list"))
+
+
+@app.route("/sales/<int:sale_id>/exchange", methods=["POST"])
+def sale_exchange(sale_id):
+    db = get_db()
+    sale = db.execute(text("SELECT * FROM sales WHERE id = :id"), {"id": sale_id}).mappings().first()
+    if not sale:
+        flash("Sale not found.", "danger")
+        return redirect(url_for("sales_list"))
+
+    remaining = sale["quantity"] - sale["refunded_quantity"]
+    exchange_qty = parse_int(request.form.get("exchange_quantity"))
+    new_item_id = parse_int(request.form.get("new_item_id"))
+    new_item = db.execute(text("SELECT * FROM items WHERE id = :id"), {"id": new_item_id}).mappings().first()
+
+    if exchange_qty <= 0:
+        flash("Exchange quantity must be greater than zero.", "danger")
+        return redirect(url_for("sales_list"))
+    if exchange_qty > remaining:
+        flash(f"Only {remaining} unit(s) from this sale can still be exchanged.", "danger")
+        return redirect(url_for("sales_list"))
+    if not new_item:
+        flash("Please choose a valid item to exchange for.", "danger")
+        return redirect(url_for("sales_list"))
+    if new_item["quantity"] < exchange_qty:
+        flash(f"Only {new_item['quantity']} in stock for {new_item['name']} — cannot exchange {exchange_qty}.", "danger")
+        return redirect(url_for("sales_list"))
+
+    new_price = parse_float(request.form.get("new_sale_price"), new_item["sell_price"])
+    new_date = request.form.get("exchange_date") or date.today().isoformat()
+
+    # Return the original item to stock and mark that portion as refunded.
+    db.execute(
+        text("UPDATE sales SET refunded_quantity = refunded_quantity + :qty WHERE id = :id"),
+        {"qty": exchange_qty, "id": sale_id},
+    )
+    db.execute(
+        text("UPDATE items SET quantity = quantity + :qty WHERE id = :id"),
+        {"qty": exchange_qty, "id": sale["item_id"]},
+    )
+    # Record the new item as a fresh sale, linked back to the original.
+    db.execute(text(
+        "INSERT INTO sales (item_id, quantity, sale_price, sale_date, exchanged_from_sale_id) "
+        "VALUES (:item_id, :quantity, :sale_price, :sale_date, :exchanged_from_sale_id)"
+    ), {
+        "item_id": new_item_id,
+        "quantity": exchange_qty,
+        "sale_price": new_price,
+        "sale_date": new_date,
+        "exchanged_from_sale_id": sale_id,
+    })
+    db.execute(
+        text("UPDATE items SET quantity = quantity - :qty WHERE id = :id"),
+        {"qty": exchange_qty, "id": new_item_id},
+    )
+    db.commit()
+
+    price_diff = new_price - sale["sale_price"]
+    if price_diff > 0:
+        diff_note = f"customer pays {CURRENCY}{price_diff:.2f} more"
+    elif price_diff < 0:
+        diff_note = f"refund {CURRENCY}{-price_diff:.2f} difference"
+    else:
+        diff_note = "no price difference"
+    flash(f"Exchanged {exchange_qty} unit(s) for {new_item['name']} ({diff_note}).", "success")
     return redirect(url_for("sales_list"))
 
 
@@ -506,8 +606,9 @@ def reports():
 
     sql = (
         "SELECT i.id, i.name, i.size, i.color, i.cost_price, "
-        "SUM(s.quantity) AS units_sold, SUM(s.quantity * s.sale_price) AS revenue, "
-        "SUM(s.quantity * i.cost_price) AS cogs "
+        "SUM(s.quantity - s.refunded_quantity) AS units_sold, "
+        "SUM((s.quantity - s.refunded_quantity) * s.sale_price) AS revenue, "
+        "SUM((s.quantity - s.refunded_quantity) * i.cost_price) AS cogs "
         "FROM sales s JOIN items i ON i.id = s.item_id WHERE 1=1"
     )
     params = {}

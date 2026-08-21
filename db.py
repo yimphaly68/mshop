@@ -60,7 +60,10 @@ sales = Table(
     Column("quantity", Integer, nullable=False),
     Column("sale_price", Float, nullable=False),
     Column("sale_date", Text, nullable=False),
+    Column("refunded_quantity", Integer, nullable=False, server_default="0"),
+    Column("exchanged_from_sale_id", Integer, ForeignKey("sales.id", ondelete="SET NULL")),
     Column("created_at", DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")),
+    CheckConstraint("refunded_quantity BETWEEN 0 AND quantity", name="ck_sales_refunded_quantity"),
 )
 
 advertising = Table(
@@ -75,15 +78,25 @@ advertising = Table(
 )
 
 
+def _existing_columns(conn, table_name):
+    if engine.dialect.name == "sqlite":
+        return {row[0] for row in conn.execute(text(f"SELECT name FROM pragma_table_info('{table_name}')"))}
+    return {row[0] for row in conn.execute(text(
+        "SELECT column_name FROM information_schema.columns WHERE table_name = :t"
+    ), {"t": table_name})}
+
+
 def init_db():
     metadata.create_all(engine)
     with engine.begin() as conn:
-        columns = {row[0] for row in conn.execute(text("SELECT name FROM pragma_table_info('items')"))} \
-            if engine.dialect.name == "sqlite" else \
-            {row[0] for row in conn.execute(text(
-                "SELECT column_name FROM information_schema.columns WHERE table_name = 'items'"
-            ))}
-        if "star_rating" not in columns:
+        item_columns = _existing_columns(conn, "items")
+        if "star_rating" not in item_columns:
             conn.execute(text("ALTER TABLE items ADD COLUMN star_rating INTEGER NOT NULL DEFAULT 0"))
-        if "is_best_seller" in columns:
+        if "is_best_seller" in item_columns:
             conn.execute(text("UPDATE items SET star_rating = 5 WHERE is_best_seller = 1 AND star_rating = 0"))
+
+        sales_columns = _existing_columns(conn, "sales")
+        if "refunded_quantity" not in sales_columns:
+            conn.execute(text("ALTER TABLE sales ADD COLUMN refunded_quantity INTEGER NOT NULL DEFAULT 0"))
+        if "exchanged_from_sale_id" not in sales_columns:
+            conn.execute(text("ALTER TABLE sales ADD COLUMN exchanged_from_sale_id INTEGER"))
