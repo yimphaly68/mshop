@@ -185,9 +185,14 @@
 
     <hr class="divider">
 
+    <div class="row"><span class="label">Subtotal</span><span>{{ CURRENCY }}{{ "%.2f"|format(sale.quantity * sale.sale_price) }}</span></div>
+    <div class="row"><span class="label">Delivery Fee-ថ្លៃដឹកជញ្ជូន</span><span>{{ 'Free' if sale.delivery_fee == 0 else CURRENCY ~ '%.2f'|format(sale.delivery_fee) }}</span></div>
+
+    <hr class="divider">
+
     <div class="total-row">
       <span>TOTAL</span>
-      <span>{{ CURRENCY }}{{ "%.2f"|format(sale.quantity * sale.sale_price) }}</span>
+      <span>{{ CURRENCY }}{{ "%.2f"|format(sale.quantity * sale.sale_price + sale.delivery_fee) }}</span>
     </div>
 
     <p class="thank-you">Thank you for your purchase!<br>អរគុណសម្រាប់ការទិញ!</p>

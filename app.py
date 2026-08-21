@@ -456,8 +456,10 @@ def sale_new():
     sale_date = request.form.get("sale_date") or date.today().isoformat()
 
     db.execute(text(
-        "INSERT INTO sales (item_id, quantity, sale_price, sale_date, buyer_name, address, phone_number, delivery_by) "
-        "VALUES (:item_id, :quantity, :sale_price, :sale_date, :buyer_name, :address, :phone_number, :delivery_by)"
+        "INSERT INTO sales (item_id, quantity, sale_price, sale_date, buyer_name, address, "
+        "phone_number, delivery_by, delivery_fee) "
+        "VALUES (:item_id, :quantity, :sale_price, :sale_date, :buyer_name, :address, "
+        ":phone_number, :delivery_by, :delivery_fee)"
     ), {
         "item_id": item_id,
         "quantity": quantity,
@@ -467,6 +469,7 @@ def sale_new():
         "address": request.form.get("address", "").strip(),
         "phone_number": request.form.get("phone_number", "").strip(),
         "delivery_by": request.form.get("delivery_by", "").strip(),
+        "delivery_fee": parse_float(request.form.get("delivery_fee"), 0),
     })
     db.execute(
         text("UPDATE items SET quantity = quantity - :quantity WHERE id = :id"),
@@ -487,12 +490,13 @@ def sale_edit_delivery(sale_id):
 
     db.execute(text(
         "UPDATE sales SET buyer_name=:buyer_name, address=:address, "
-        "phone_number=:phone_number, delivery_by=:delivery_by WHERE id=:id"
+        "phone_number=:phone_number, delivery_by=:delivery_by, delivery_fee=:delivery_fee WHERE id=:id"
     ), {
         "buyer_name": request.form.get("buyer_name", "").strip(),
         "address": request.form.get("address", "").strip(),
         "phone_number": request.form.get("phone_number", "").strip(),
         "delivery_by": request.form.get("delivery_by", "").strip(),
+        "delivery_fee": parse_float(request.form.get("delivery_fee"), 0),
         "id": sale_id,
     })
     db.commit()
@@ -589,9 +593,9 @@ def sale_exchange(sale_id):
     # Record the new item as a fresh sale, linked back to the original.
     db.execute(text(
         "INSERT INTO sales (item_id, quantity, sale_price, sale_date, exchanged_from_sale_id, "
-        "buyer_name, address, phone_number, delivery_by) "
+        "buyer_name, address, phone_number, delivery_by, delivery_fee) "
         "VALUES (:item_id, :quantity, :sale_price, :sale_date, :exchanged_from_sale_id, "
-        ":buyer_name, :address, :phone_number, :delivery_by)"
+        ":buyer_name, :address, :phone_number, :delivery_by, :delivery_fee)"
     ), {
         "item_id": new_item_id,
         "quantity": exchange_qty,
@@ -602,6 +606,7 @@ def sale_exchange(sale_id):
         "address": sale["address"],
         "phone_number": sale["phone_number"],
         "delivery_by": sale["delivery_by"],
+        "delivery_fee": sale["delivery_fee"],
     })
     db.execute(
         text("UPDATE items SET quantity = quantity - :qty WHERE id = :id"),
