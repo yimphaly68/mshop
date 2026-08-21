@@ -21,6 +21,7 @@ ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp"}
 
 CURRENCY = "$"  # change this symbol if your shop uses a different currency
 LOW_STOCK_THRESHOLD = 3
+RESTOCK_ALERT_THRESHOLD = 2  # dashboard carousel: items at or below this need reordering
 
 USE_CLOUDINARY = bool(os.environ.get("CLOUDINARY_URL"))
 if USE_CLOUDINARY:
@@ -182,6 +183,10 @@ def dashboard():
     stock_value_retail = sum(i["quantity"] * i["sell_price"] for i in items)
     out_of_stock = [i for i in items if i["quantity"] <= 0]
     low_stock = [i for i in items if 0 < i["quantity"] <= LOW_STOCK_THRESHOLD]
+    restock_items = sorted(
+        (i for i in items if i["quantity"] <= RESTOCK_ALERT_THRESHOLD),
+        key=lambda i: (i["quantity"], i["name"]),
+    )
     best_sellers = sorted(
         (i for i in items if i["star_rating"] >= 4),
         key=lambda i: i["star_rating"],
@@ -223,6 +228,8 @@ def dashboard():
         stock_value_retail=stock_value_retail,
         out_of_stock=out_of_stock,
         low_stock=low_stock,
+        restock_items=restock_items,
+        restock_alert_threshold=RESTOCK_ALERT_THRESHOLD,
         best_sellers=best_sellers,
         units_sold=sales_summary["units_sold"] or 0,
         revenue=revenue,
