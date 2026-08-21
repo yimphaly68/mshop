@@ -52,7 +52,7 @@
 <div class="card mb-4 restock-alert-card">
   <div class="card-header fw-semibold text-danger">
     <i class="bi bi-exclamation-triangle-fill me-1"></i>
-    Restock Alert — {{ restock_items|length }} item{{ 's' if restock_items|length != 1 }} at {{ restock_alert_threshold }} or fewer left
+    Restock Alert — {{ restock_items|length }} item{{ 's' if restock_items|length != 1 }} with 1-{{ restock_alert_threshold }} left in stock
   </div>
   <div id="restockCarousel" class="carousel slide" data-bs-interval="false">
     <div class="carousel-inner">
@@ -107,14 +107,14 @@
       <div class="card-body">
         <table class="table table-sm mb-0">
           <tbody>
-            <tr><td>Revenue ({{ units_sold }} units sold)</td><td class="text-end">{{ CURRENCY }}{{ "%.2f"|format(revenue) }}</td></tr>
-            <tr><td>Cost of goods sold</td><td class="text-end text-danger">-{{ CURRENCY }}{{ "%.2f"|format(cogs) }}</td></tr>
-            <tr class="border-top"><td class="fw-semibold">Gross profit</td><td class="text-end fw-semibold">{{ CURRENCY }}{{ "%.2f"|format(gross_profit) }}</td></tr>
-            <tr><td>Other income</td><td class="text-end text-success">+{{ CURRENCY }}{{ "%.2f"|format(other_income) }}</td></tr>
-            <tr><td>Advertising spend</td><td class="text-end text-danger">-{{ CURRENCY }}{{ "%.2f"|format(ad_spend) }}</td></tr>
-            <tr><td>Other expenses</td><td class="text-end text-danger">-{{ CURRENCY }}{{ "%.2f"|format(other_expenses) }}</td></tr>
+            <tr><td>Revenue ({{ units_sold }} units sold-លក់បាន)</td><td class="text-end">{{ CURRENCY }}{{ "%.2f"|format(revenue) }}</td></tr>
+            <tr><td>Cost of goods sold-ថ្លៃដើម ត្រូវដក់ដើមទុក</td><td class="text-end text-danger">-{{ CURRENCY }}{{ "%.2f"|format(cogs) }}</td></tr>
+            <tr class="border-top"><td class="fw-semibold">Gross profit-ចំណេញ</td><td class="text-end fw-semibold">{{ CURRENCY }}{{ "%.2f"|format(gross_profit) }}</td></tr>
+            <tr><td>Other income-ចំណូលផ្សេងៗ</td><td class="text-end text-success">+{{ CURRENCY }}{{ "%.2f"|format(other_income) }}</td></tr>
+            <tr><td>Advertising spend-ចំណាយផ្សាយហ្វេសបុក</td><td class="text-end text-danger">-{{ CURRENCY }}{{ "%.2f"|format(ad_spend) }}</td></tr>
+            <tr><td>Other expenses-ចំណាយផ្សេងៗ</td><td class="text-end text-danger">-{{ CURRENCY }}{{ "%.2f"|format(other_expenses) }}</td></tr>
             <tr class="border-top">
-              <td class="fw-bold">Net profit / loss</td>
+              <td class="fw-bold">Net profit / loss-ចំណេញ ឬ ខាត</td>
               <td class="text-end fw-bold {{ 'text-success' if net_profit >= 0 else 'text-danger' }}">{{ CURRENCY }}{{ "%.2f"|format(net_profit) }}</td>
             </tr>
           </tbody>

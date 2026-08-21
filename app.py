@@ -196,7 +196,7 @@ def dashboard():
     out_of_stock = [i for i in items if i["quantity"] <= 0]
     low_stock = [i for i in items if 0 < i["quantity"] <= LOW_STOCK_THRESHOLD]
     restock_items = sorted(
-        (i for i in items if i["quantity"] <= RESTOCK_ALERT_THRESHOLD),
+        (i for i in items if 0 < i["quantity"] <= RESTOCK_ALERT_THRESHOLD),
         key=lambda i: (i["quantity"], i["name"]),
     )
     best_sellers = sorted(
