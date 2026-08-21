@@ -155,6 +155,12 @@
     {% if sale.address %}
     <div class="row"><span class="label">Address-ទីតាំងការដឹកជញ្ជូន</span><span>{{ sale.address }}</span></div>
     {% endif %}
+    {% if sale.phone_number %}
+    <div class="row"><span class="label">Phone-លេខទូរស័ព្ទ</span><span>{{ sale.phone_number }}</span></div>
+    {% endif %}
+    {% if sale.delivery_by %}
+    <div class="row"><span class="label">Delivery-ដឹកដោយ</span><span>{{ sale.delivery_by }}</span></div>
+    {% endif %}
 
     <hr class="divider">
 

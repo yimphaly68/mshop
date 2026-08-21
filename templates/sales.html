@@ -9,7 +9,7 @@
   <div class="card-body">
     <form method="post" action="{{ url_for('sale_new') }}" class="row g-2 align-items-end">
       <div class="col-md-3">
-        <label class="form-label small">Item</label>
+        <label class="form-label small">Item-ជ្រើសរើស ខោអាវ</label>
         <select name="item_id" class="form-select" required onchange="fillPrice(this)">
           <option value="">Select item...</option>
           {% for i in items %}
@@ -34,6 +34,18 @@
       <div class="col-md-2">
         <label class="form-label small">Address-ទីតាំងការដឹកជញ្ជូនទៅ</label>
         <input type="text" name="address" class="form-control" placeholder="Optional">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Phone Number-លេខទូរស័ព្ទ</label>
+        <input type="text" name="phone_number" class="form-control" placeholder="Optional">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Delivery by-ដឹកដោយក្រុមហ៊ុន</label>
+        <input type="text" name="delivery_by" list="deliveryByOptions" class="form-control" placeholder="Choose or type your own" autocomplete="off">
+        <datalist id="deliveryByOptions">
+          <option value="វិរៈ ប៊ុនថាំ">
+          <option value="J&amp;T EXPRESS">
+        </datalist>
       </div>
       <div class="col-6 col-md-2">
         <label class="form-label small">Sale date</label>

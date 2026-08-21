@@ -65,6 +65,8 @@ sales = Table(
     Column("exchanged_from_sale_id", Integer, ForeignKey("sales.id", ondelete="SET NULL")),
     Column("buyer_name", Text),
     Column("address", Text),
+    Column("phone_number", Text),
+    Column("delivery_by", Text),
     Column("created_at", DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")),
     CheckConstraint("refunded_quantity BETWEEN 0 AND quantity", name="ck_sales_refunded_quantity"),
 )
@@ -151,3 +153,11 @@ def init_db():
         if "address" not in sales_columns:
             conn.execute(text("ALTER TABLE sales ADD COLUMN address TEXT"))
     _run_migration_step(_migrate_sales_buyer_info)
+
+    def _migrate_sales_delivery_info(conn):
+        sales_columns = _existing_columns(conn, "sales")
+        if "phone_number" not in sales_columns:
+            conn.execute(text("ALTER TABLE sales ADD COLUMN phone_number TEXT"))
+        if "delivery_by" not in sales_columns:
+            conn.execute(text("ALTER TABLE sales ADD COLUMN delivery_by TEXT"))
+    _run_migration_step(_migrate_sales_delivery_info)
