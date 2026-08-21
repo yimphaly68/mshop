@@ -77,6 +77,28 @@ advertising = Table(
     Column("created_at", DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")),
 )
 
+expenses = Table(
+    "expenses",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("expense_date", Text, nullable=False),
+    Column("category", Text),
+    Column("description", Text),
+    Column("amount", Float, nullable=False),
+    Column("created_at", DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")),
+)
+
+other_income = Table(
+    "other_income",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("income_date", Text, nullable=False),
+    Column("source", Text),
+    Column("description", Text),
+    Column("amount", Float, nullable=False),
+    Column("created_at", DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")),
+)
+
 
 def _existing_columns(conn, table_name):
     if engine.dialect.name == "sqlite":

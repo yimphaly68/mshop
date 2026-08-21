@@ -20,9 +20,11 @@
     <div class="collapse navbar-collapse" id="nav">
       <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
         <li class="nav-item"><a class="nav-link {{ 'active' if request.endpoint=='dashboard' }}" href="{{ url_for('dashboard') }}"><i class="bi bi-speedometer2 me-1"></i>Dashboard-ផ្ទាំងគ្រប់គ្រង</a></li>
-        <li class="nav-item"><a class="nav-link {{ 'active' if request.endpoint in ['items_list','item_new','item_edit'] }}" href="{{ url_for('items_list') }}"><i class="bi bi-box-seam me-1"></i>Items-បញ្ចូលទិន្នន័យុ</a></li>
+        <li class="nav-item"><a class="nav-link {{ 'active' if request.endpoint in ['items_list','item_new','item_edit'] }}" href="{{ url_for('items_list') }}"><i class="bi bi-box-seam me-1"></i>Items-បញ្ចូលទិន្នន័យ</a></li>
         <li class="nav-item"><a class="nav-link {{ 'active' if request.endpoint=='sales_list' }}" href="{{ url_for('sales_list') }}"><i class="bi bi-cart-check me-1"></i>Sale-លក់ចេញ</a></li>
         <li class="nav-item"><a class="nav-link {{ 'active' if request.endpoint=='advertising_list' }}" href="{{ url_for('advertising_list') }}"><i class="bi bi-megaphone me-1"></i>Advertising-ចំណាយ ផ្សាយពាណិជ្ជកម្ម</a></li>
+        <li class="nav-item"><a class="nav-link {{ 'active' if request.endpoint=='expenses_list' }}" href="{{ url_for('expenses_list') }}"><i class="bi bi-wallet2 me-1"></i>Expenses-ចំណាយផ្សេងៗ</a></li>
+        <li class="nav-item"><a class="nav-link {{ 'active' if request.endpoint=='income_list' }}" href="{{ url_for('income_list') }}"><i class="bi bi-cash-coin me-1"></i>Income-ចំណូលផ្សេងៗ</a></li>
         <li class="nav-item"><a class="nav-link {{ 'active' if request.endpoint=='reports' }}" href="{{ url_for('reports') }}"><i class="bi bi-graph-up-arrow me-1"></i>Report-របាយការណ៍</a></li>
         {% if current_username() %}
         <li class="nav-item d-flex align-items-center ms-lg-3">

@@ -168,6 +168,18 @@ def parse_int(value, default=0):
         return default
 
 
+def _date_filtered_total(db, table, date_column, date_from, date_to):
+    sql = f"SELECT COALESCE(SUM(amount),0) AS total FROM {table} WHERE 1=1"
+    params = {}
+    if date_from:
+        sql += f" AND {date_column} >= :date_from"
+        params["date_from"] = date_from
+    if date_to:
+        sql += f" AND {date_column} <= :date_to"
+        params["date_to"] = date_to
+    return db.execute(text(sql), params).mappings().one()["total"] or 0
+
+
 # ---------------------------------------------------------------------------
 # Dashboard
 # ---------------------------------------------------------------------------
@@ -208,11 +220,21 @@ def dashboard():
         "SELECT COALESCE(SUM(amount),0) AS total FROM advertising"
     )).mappings().one()
 
+    other_expenses_row = db.execute(text(
+        "SELECT COALESCE(SUM(amount),0) AS total FROM expenses"
+    )).mappings().one()
+
+    other_income_row = db.execute(text(
+        "SELECT COALESCE(SUM(amount),0) AS total FROM other_income"
+    )).mappings().one()
+
     revenue = sales_summary["revenue"] or 0
     cogs = cogs_row["cogs"] or 0
     ad_spend = ad_spend_row["total"] or 0
+    other_expenses = other_expenses_row["total"] or 0
+    other_income = other_income_row["total"] or 0
     gross_profit = revenue - cogs
-    net_profit = gross_profit - ad_spend
+    net_profit = gross_profit + other_income - ad_spend - other_expenses
 
     recent_sales = db.execute(text(
         "SELECT s.*, i.name AS item_name, i.size AS item_size, i.color AS item_color "
@@ -235,6 +257,8 @@ def dashboard():
         revenue=revenue,
         cogs=cogs,
         ad_spend=ad_spend,
+        other_expenses=other_expenses,
+        other_income=other_income,
         gross_profit=gross_profit,
         net_profit=net_profit,
         recent_sales=recent_sales,
@@ -602,6 +626,92 @@ def advertising_delete(expense_id):
 
 
 # ---------------------------------------------------------------------------
+# Other expenses (rent, utilities, wages, etc.)
+# ---------------------------------------------------------------------------
+
+@app.route("/expenses")
+def expenses_list():
+    db = get_db()
+    expenses = db.execute(text("SELECT * FROM expenses ORDER BY expense_date DESC, id DESC")).mappings().all()
+    total = sum(e["amount"] for e in expenses)
+    return render_template("expenses.html", expenses=expenses, total=total, today=date.today().isoformat())
+
+
+@app.route("/expenses/new", methods=["POST"])
+def expense_new():
+    db = get_db()
+    amount = parse_float(request.form.get("amount"))
+    if amount <= 0:
+        flash("Amount must be greater than zero.", "danger")
+        return redirect(url_for("expenses_list"))
+    db.execute(text(
+        "INSERT INTO expenses (expense_date, category, description, amount) "
+        "VALUES (:expense_date, :category, :description, :amount)"
+    ), {
+        "expense_date": request.form.get("expense_date") or date.today().isoformat(),
+        "category": request.form.get("category", "").strip(),
+        "description": request.form.get("description", "").strip(),
+        "amount": amount,
+    })
+    db.commit()
+    flash("Expense logged.", "success")
+    return redirect(url_for("expenses_list"))
+
+
+@app.route("/expenses/<int:expense_id>/delete", methods=["POST"])
+@admin_required
+def expense_delete(expense_id):
+    db = get_db()
+    db.execute(text("DELETE FROM expenses WHERE id = :id"), {"id": expense_id})
+    db.commit()
+    flash("Expense deleted.", "success")
+    return redirect(url_for("expenses_list"))
+
+
+# ---------------------------------------------------------------------------
+# Other income (non-sales revenue)
+# ---------------------------------------------------------------------------
+
+@app.route("/income")
+def income_list():
+    db = get_db()
+    income = db.execute(text("SELECT * FROM other_income ORDER BY income_date DESC, id DESC")).mappings().all()
+    total = sum(i["amount"] for i in income)
+    return render_template("income.html", income=income, total=total, today=date.today().isoformat())
+
+
+@app.route("/income/new", methods=["POST"])
+def income_new():
+    db = get_db()
+    amount = parse_float(request.form.get("amount"))
+    if amount <= 0:
+        flash("Amount must be greater than zero.", "danger")
+        return redirect(url_for("income_list"))
+    db.execute(text(
+        "INSERT INTO other_income (income_date, source, description, amount) "
+        "VALUES (:income_date, :source, :description, :amount)"
+    ), {
+        "income_date": request.form.get("income_date") or date.today().isoformat(),
+        "source": request.form.get("source", "").strip(),
+        "description": request.form.get("description", "").strip(),
+        "amount": amount,
+    })
+    db.commit()
+    flash("Income logged.", "success")
+    return redirect(url_for("income_list"))
+
+
+@app.route("/income/<int:income_id>/delete", methods=["POST"])
+@admin_required
+def income_delete(income_id):
+    db = get_db()
+    db.execute(text("DELETE FROM other_income WHERE id = :id"), {"id": income_id})
+    db.commit()
+    flash("Income entry deleted.", "success")
+    return redirect(url_for("income_list"))
+
+
+# ---------------------------------------------------------------------------
 # Reports (profit & loss)
 # ---------------------------------------------------------------------------
 
@@ -632,17 +742,11 @@ def reports():
     total_cogs = sum(r["cogs"] or 0 for r in per_item)
     gross_profit = total_revenue - total_cogs
 
-    ad_sql = "SELECT COALESCE(SUM(amount),0) AS total FROM advertising WHERE 1=1"
-    ad_params = {}
-    if date_from:
-        ad_sql += " AND expense_date >= :date_from"
-        ad_params["date_from"] = date_from
-    if date_to:
-        ad_sql += " AND expense_date <= :date_to"
-        ad_params["date_to"] = date_to
-    ad_spend = db.execute(text(ad_sql), ad_params).mappings().one()["total"] or 0
+    ad_spend = _date_filtered_total(db, "advertising", "expense_date", date_from, date_to)
+    other_expenses = _date_filtered_total(db, "expenses", "expense_date", date_from, date_to)
+    other_income = _date_filtered_total(db, "other_income", "income_date", date_from, date_to)
 
-    net_profit = gross_profit - ad_spend
+    net_profit = gross_profit + other_income - ad_spend - other_expenses
 
     return render_template(
         "reports.html",
@@ -651,6 +755,8 @@ def reports():
         total_cogs=total_cogs,
         gross_profit=gross_profit,
         ad_spend=ad_spend,
+        other_expenses=other_expenses,
+        other_income=other_income,
         net_profit=net_profit,
         date_from=date_from,
         date_to=date_to,

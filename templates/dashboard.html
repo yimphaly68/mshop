@@ -110,7 +110,9 @@
             <tr><td>Revenue ({{ units_sold }} units sold)</td><td class="text-end">{{ CURRENCY }}{{ "%.2f"|format(revenue) }}</td></tr>
             <tr><td>Cost of goods sold</td><td class="text-end text-danger">-{{ CURRENCY }}{{ "%.2f"|format(cogs) }}</td></tr>
             <tr class="border-top"><td class="fw-semibold">Gross profit</td><td class="text-end fw-semibold">{{ CURRENCY }}{{ "%.2f"|format(gross_profit) }}</td></tr>
+            <tr><td>Other income</td><td class="text-end text-success">+{{ CURRENCY }}{{ "%.2f"|format(other_income) }}</td></tr>
             <tr><td>Advertising spend</td><td class="text-end text-danger">-{{ CURRENCY }}{{ "%.2f"|format(ad_spend) }}</td></tr>
+            <tr><td>Other expenses</td><td class="text-end text-danger">-{{ CURRENCY }}{{ "%.2f"|format(other_expenses) }}</td></tr>
             <tr class="border-top">
               <td class="fw-bold">Net profit / loss</td>
               <td class="text-end fw-bold {{ 'text-success' if net_profit >= 0 else 'text-danger' }}">{{ CURRENCY }}{{ "%.2f"|format(net_profit) }}</td>
