@@ -17,7 +17,7 @@
         </div>
         <div class="col-md-6">
           <label class="form-label">Category</label>
-          <input type="text" name="category" list="categoryOptions" class="form-control" placeholder="Choose or type your own" value="{{ item.category if item else '' }}">
+          <input type="text" name="category" list="categoryOptions" class="form-control" placeholder="Choose or type your own" value="{{ item.category if item else '' }}" autocomplete="off">
           <datalist id="categoryOptions">
             <option value="Jeans">
             <option value="T-shirt">
