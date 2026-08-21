@@ -13,6 +13,13 @@ body {
   background: linear-gradient(90deg, var(--brand-dark), var(--brand));
 }
 
+.brand-logo {
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
 .login-body {
   background: linear-gradient(135deg, var(--brand-dark), var(--brand));
   min-height: 100vh;
@@ -33,9 +40,11 @@ body {
   box-shadow: 0 10px 30px rgba(0,0,0,0.15);
 }
 
-.login-icon {
-  font-size: 2.5rem;
-  color: var(--brand);
+.login-logo {
+  width: 88px;
+  height: 88px;
+  object-fit: cover;
+  border-radius: 14px;
 }
 
 .stat-card {

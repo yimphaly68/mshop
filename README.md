@@ -1,4 +1,4 @@
-# MyM Shop — Stock Control
+# M Shop — Stock Control
 
 A simple web app for managing clothing shop inventory: items with photos, sizes,
 colors, cost/sell price, quantity, stock status, best sellers, sales, advertising
