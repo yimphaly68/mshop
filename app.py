@@ -456,9 +456,16 @@ def sale_new():
     sale_date = request.form.get("sale_date") or date.today().isoformat()
 
     db.execute(text(
-        "INSERT INTO sales (item_id, quantity, sale_price, sale_date) "
-        "VALUES (:item_id, :quantity, :sale_price, :sale_date)"
-    ), {"item_id": item_id, "quantity": quantity, "sale_price": sale_price, "sale_date": sale_date})
+        "INSERT INTO sales (item_id, quantity, sale_price, sale_date, buyer_name, address) "
+        "VALUES (:item_id, :quantity, :sale_price, :sale_date, :buyer_name, :address)"
+    ), {
+        "item_id": item_id,
+        "quantity": quantity,
+        "sale_price": sale_price,
+        "sale_date": sale_date,
+        "buyer_name": request.form.get("buyer_name", "").strip(),
+        "address": request.form.get("address", "").strip(),
+    })
     db.execute(
         text("UPDATE items SET quantity = quantity - :quantity WHERE id = :id"),
         {"quantity": quantity, "id": item_id},
@@ -556,14 +563,16 @@ def sale_exchange(sale_id):
     )
     # Record the new item as a fresh sale, linked back to the original.
     db.execute(text(
-        "INSERT INTO sales (item_id, quantity, sale_price, sale_date, exchanged_from_sale_id) "
-        "VALUES (:item_id, :quantity, :sale_price, :sale_date, :exchanged_from_sale_id)"
+        "INSERT INTO sales (item_id, quantity, sale_price, sale_date, exchanged_from_sale_id, buyer_name, address) "
+        "VALUES (:item_id, :quantity, :sale_price, :sale_date, :exchanged_from_sale_id, :buyer_name, :address)"
     ), {
         "item_id": new_item_id,
         "quantity": exchange_qty,
         "sale_price": new_price,
         "sale_date": new_date,
         "exchanged_from_sale_id": sale_id,
+        "buyer_name": sale["buyer_name"],
+        "address": sale["address"],
     })
     db.execute(
         text("UPDATE items SET quantity = quantity - :qty WHERE id = :id"),
@@ -580,6 +589,19 @@ def sale_exchange(sale_id):
         diff_note = "no price difference"
     flash(f"Exchanged {exchange_qty} unit(s) for {new_item['name']} ({diff_note}).", "success")
     return redirect(url_for("sales_list"))
+
+
+@app.route("/sales/<int:sale_id>/receipt")
+def sale_receipt(sale_id):
+    db = get_db()
+    sale = db.execute(text(
+        "SELECT s.*, i.name AS item_name, i.size AS item_size, i.color AS item_color "
+        "FROM sales s JOIN items i ON i.id = s.item_id WHERE s.id = :id"
+    ), {"id": sale_id}).mappings().first()
+    if not sale:
+        flash("Sale not found.", "danger")
+        return redirect(url_for("sales_list"))
+    return render_template("receipt.html", sale=sale)
 
 
 # ---------------------------------------------------------------------------
