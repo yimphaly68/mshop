@@ -477,6 +477,29 @@ def sale_new():
     return redirect(url_for("sales_list"))
 
 
+@app.route("/sales/<int:sale_id>/edit-delivery", methods=["POST"])
+def sale_edit_delivery(sale_id):
+    db = get_db()
+    sale = db.execute(text("SELECT id FROM sales WHERE id = :id"), {"id": sale_id}).mappings().first()
+    if not sale:
+        flash("Sale not found.", "danger")
+        return redirect(url_for("sales_list"))
+
+    db.execute(text(
+        "UPDATE sales SET buyer_name=:buyer_name, address=:address, "
+        "phone_number=:phone_number, delivery_by=:delivery_by WHERE id=:id"
+    ), {
+        "buyer_name": request.form.get("buyer_name", "").strip(),
+        "address": request.form.get("address", "").strip(),
+        "phone_number": request.form.get("phone_number", "").strip(),
+        "delivery_by": request.form.get("delivery_by", "").strip(),
+        "id": sale_id,
+    })
+    db.commit()
+    flash("Buyer and delivery info updated.", "success")
+    return redirect(url_for("sales_list"))
+
+
 @app.route("/sales/<int:sale_id>/delete", methods=["POST"])
 @admin_required
 def sale_delete(sale_id):
