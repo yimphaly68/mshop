@@ -15,6 +15,7 @@ from sqlalchemy import (
     event,
     text,
 )
+from sqlalchemy.exc import OperationalError, ProgrammingError
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 SQLITE_PATH = os.path.join(BASE_DIR, "instance", "stock.db")
@@ -108,17 +109,35 @@ def _existing_columns(conn, table_name):
     ), {"t": table_name})}
 
 
+def _run_migration_step(fn):
+    """Run one migration step in its own transaction. If it fails because another
+    worker process already made the same change concurrently (e.g. at container
+    startup with multiple gunicorn workers), that's the desired end state, so the
+    race is swallowed rather than crashing the worker."""
+    try:
+        with engine.begin() as conn:
+            fn(conn)
+    except (OperationalError, ProgrammingError):
+        pass
+
+
 def init_db():
-    metadata.create_all(engine)
-    with engine.begin() as conn:
+    _run_migration_step(lambda conn: metadata.create_all(conn))
+
+    def _migrate_items(conn):
         item_columns = _existing_columns(conn, "items")
         if "star_rating" not in item_columns:
             conn.execute(text("ALTER TABLE items ADD COLUMN star_rating INTEGER NOT NULL DEFAULT 0"))
         if "is_best_seller" in item_columns:
             conn.execute(text("UPDATE items SET star_rating = 5 WHERE is_best_seller = 1 AND star_rating = 0"))
+    _run_migration_step(_migrate_items)
 
-        sales_columns = _existing_columns(conn, "sales")
-        if "refunded_quantity" not in sales_columns:
+    def _migrate_sales_refunded(conn):
+        if "refunded_quantity" not in _existing_columns(conn, "sales"):
             conn.execute(text("ALTER TABLE sales ADD COLUMN refunded_quantity INTEGER NOT NULL DEFAULT 0"))
-        if "exchanged_from_sale_id" not in sales_columns:
+    _run_migration_step(_migrate_sales_refunded)
+
+    def _migrate_sales_exchanged(conn):
+        if "exchanged_from_sale_id" not in _existing_columns(conn, "sales"):
             conn.execute(text("ALTER TABLE sales ADD COLUMN exchanged_from_sale_id INTEGER"))
+    _run_migration_step(_migrate_sales_exchanged)
