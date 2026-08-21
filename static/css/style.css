@@ -1,7 +1,7 @@
 :root {
-  --brand: #b8447a;
-  --brand-dark: #8f2f5c;
-  --bg: #f7f5f8;
+  --brand: #d4af37;
+  --brand-dark: #0d0d0d;
+  --bg: #f8f8f6;
 }
 
 body {
@@ -10,7 +10,8 @@ body {
 }
 
 .app-navbar {
-  background: linear-gradient(90deg, var(--brand-dark), var(--brand));
+  background: var(--brand-dark);
+  border-bottom: 2px solid var(--brand);
 }
 
 .brand-logo {
@@ -104,13 +105,16 @@ body {
 }
 
 .btn-primary {
-  background-color: var(--brand);
-  border-color: var(--brand);
-}
-
-.btn-primary:hover {
-  background-color: var(--brand-dark);
-  border-color: var(--brand-dark);
+  --bs-btn-bg: var(--brand);
+  --bs-btn-border-color: var(--brand);
+  --bs-btn-color: #000;
+  --bs-btn-hover-bg: var(--brand-dark);
+  --bs-btn-hover-border-color: var(--brand-dark);
+  --bs-btn-hover-color: #fff;
+  --bs-btn-active-bg: var(--brand-dark);
+  --bs-btn-active-border-color: var(--brand-dark);
+  --bs-btn-active-color: #fff;
+  --bs-btn-focus-shadow-rgb: 212, 175, 55;
 }
 
 .star-rate-form {
@@ -129,18 +133,24 @@ body {
 }
 
 .star-btn.filled {
-  color: #f4b400;
+  color: var(--brand);
 }
 
 .star-btn:hover {
-  color: #f4b400;
+  color: var(--brand);
   transform: scale(1.1);
 }
 
 .nav-link.active {
   font-weight: 600;
+  color: var(--brand) !important;
   text-decoration: underline;
+  text-decoration-color: var(--brand);
   text-underline-offset: 6px;
+}
+
+.app-navbar .nav-link:hover {
+  color: var(--brand) !important;
 }
 
 .restock-alert-card {
