@@ -1,4 +1,8 @@
+import html
+import json
 import os
+import urllib.error
+import urllib.request
 import uuid
 from datetime import date, timedelta
 from functools import wraps
@@ -26,6 +30,27 @@ RESTOCK_ALERT_THRESHOLD = 2  # dashboard carousel: items at or below this need r
 USE_CLOUDINARY = bool(os.environ.get("CLOUDINARY_URL"))
 if USE_CLOUDINARY:
     cloudinary.config()
+
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+
+
+def notify_telegram(message):
+    """Best-effort Telegram notification. Silently does nothing if not configured,
+    and never lets a Telegram failure break the action that triggered it."""
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        return
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = json.dumps({
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": message,
+        "parse_mode": "HTML",
+    }).encode("utf-8")
+    req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+    try:
+        urllib.request.urlopen(req, timeout=5)
+    except (urllib.error.URLError, urllib.error.HTTPError):
+        pass
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-stock-control-secret")
@@ -316,19 +341,26 @@ def item_new():
     if request.method == "POST":
         db = get_db()
         filename = save_photo(request.files.get("photo"))
+        name = request.form.get("name", "").strip()
+        size = request.form.get("size", "").strip()
+        color = request.form.get("color", "").strip()
+        quantity = parse_int(request.form.get("quantity"))
+        cost_price = parse_float(request.form.get("cost_price"))
+        sell_price = parse_float(request.form.get("sell_price"))
+
         db.execute(text(
             "INSERT INTO items (name, category, size, color, cost_price, sell_price, "
             "quantity, date_added, image_filename, star_rating, notes) "
             "VALUES (:name, :category, :size, :color, :cost_price, :sell_price, "
             ":quantity, :date_added, :image_filename, :star_rating, :notes)"
         ), {
-            "name": request.form.get("name", "").strip(),
+            "name": name,
             "category": request.form.get("category", "").strip(),
-            "size": request.form.get("size", "").strip(),
-            "color": request.form.get("color", "").strip(),
-            "cost_price": parse_float(request.form.get("cost_price")),
-            "sell_price": parse_float(request.form.get("sell_price")),
-            "quantity": parse_int(request.form.get("quantity")),
+            "size": size,
+            "color": color,
+            "cost_price": cost_price,
+            "sell_price": sell_price,
+            "quantity": quantity,
             "date_added": request.form.get("date_added") or date.today().isoformat(),
             "image_filename": filename,
             "star_rating": max(0, min(5, parse_int(request.form.get("star_rating")))),
@@ -336,6 +368,13 @@ def item_new():
         })
         db.commit()
         flash("Item added.", "success")
+
+        variant = ", ".join(v for v in [size, color] if v)
+        notify_telegram(
+            f"🆕 <b>New Item Added</b>\n"
+            f"{html.escape(name)}{' (' + html.escape(variant) + ')' if variant else ''}\n"
+            f"Qty: {quantity} | Cost: {CURRENCY}{cost_price:.2f} | Sell: {CURRENCY}{sell_price:.2f}"
+        )
         return redirect(url_for("items_list"))
 
     return render_template("item_form.html", item=None, today=date.today().isoformat())
@@ -454,6 +493,8 @@ def sale_new():
 
     sale_price = parse_float(request.form.get("sale_price"), item["sell_price"])
     sale_date = request.form.get("sale_date") or date.today().isoformat()
+    buyer_name = request.form.get("buyer_name", "").strip()
+    delivery_fee = parse_float(request.form.get("delivery_fee"), 0)
 
     db.execute(text(
         "INSERT INTO sales (item_id, quantity, sale_price, sale_date, buyer_name, address, "
@@ -465,11 +506,11 @@ def sale_new():
         "quantity": quantity,
         "sale_price": sale_price,
         "sale_date": sale_date,
-        "buyer_name": request.form.get("buyer_name", "").strip(),
+        "buyer_name": buyer_name,
         "address": request.form.get("address", "").strip(),
         "phone_number": request.form.get("phone_number", "").strip(),
         "delivery_by": request.form.get("delivery_by", "").strip(),
-        "delivery_fee": parse_float(request.form.get("delivery_fee"), 0),
+        "delivery_fee": delivery_fee,
     })
     db.execute(
         text("UPDATE items SET quantity = quantity - :quantity WHERE id = :id"),
@@ -477,6 +518,14 @@ def sale_new():
     )
     db.commit()
     flash(f"Sale recorded: {quantity} x {item['name']}.", "success")
+
+    total = quantity * sale_price + delivery_fee
+    notify_telegram(
+        f"💰 <b>New Sale</b>\n"
+        f"{quantity} x {html.escape(item['name'])}\n"
+        f"Total: {CURRENCY}{total:.2f}"
+        + (f"\nBuyer: {html.escape(buyer_name)}" if buyer_name else "")
+    )
     return redirect(url_for("sales_list"))
 
 
@@ -657,17 +706,23 @@ def advertising_new():
     if amount <= 0:
         flash("Amount must be greater than zero.", "danger")
         return redirect(url_for("advertising_list"))
+    platform = request.form.get("platform", "").strip()
     db.execute(text(
         "INSERT INTO advertising (expense_date, platform, description, amount) "
         "VALUES (:expense_date, :platform, :description, :amount)"
     ), {
         "expense_date": request.form.get("expense_date") or date.today().isoformat(),
-        "platform": request.form.get("platform", "").strip(),
+        "platform": platform,
         "description": request.form.get("description", "").strip(),
         "amount": amount,
     })
     db.commit()
     flash("Advertising expense logged.", "success")
+
+    notify_telegram(
+        f"📢 <b>Advertising Expense</b>\n"
+        f"{html.escape(platform) if platform else 'Advertising'}: {CURRENCY}{amount:.2f}"
+    )
     return redirect(url_for("advertising_list"))
 
 
@@ -700,17 +755,23 @@ def expense_new():
     if amount <= 0:
         flash("Amount must be greater than zero.", "danger")
         return redirect(url_for("expenses_list"))
+    category = request.form.get("category", "").strip()
     db.execute(text(
         "INSERT INTO expenses (expense_date, category, description, amount) "
         "VALUES (:expense_date, :category, :description, :amount)"
     ), {
         "expense_date": request.form.get("expense_date") or date.today().isoformat(),
-        "category": request.form.get("category", "").strip(),
+        "category": category,
         "description": request.form.get("description", "").strip(),
         "amount": amount,
     })
     db.commit()
     flash("Expense logged.", "success")
+
+    notify_telegram(
+        f"💸 <b>Expense Logged</b>\n"
+        f"{html.escape(category) if category else 'Expense'}: {CURRENCY}{amount:.2f}"
+    )
     return redirect(url_for("expenses_list"))
 
 
