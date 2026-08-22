@@ -537,20 +537,27 @@ def sale_new():
 @app.route("/sales/<int:sale_id>/edit-delivery", methods=["POST"])
 def sale_edit_delivery(sale_id):
     db = get_db()
-    sale = db.execute(text("SELECT id FROM sales WHERE id = :id"), {"id": sale_id}).mappings().first()
+    sale = db.execute(text("SELECT id, sale_price FROM sales WHERE id = :id"), {"id": sale_id}).mappings().first()
     if not sale:
         flash("Sale not found.", "danger")
         return redirect(url_for("sales_list"))
 
+    sale_price = parse_float(request.form.get("sale_price"), sale["sale_price"])
+    if sale_price <= 0:
+        flash("Price must be greater than zero — not updated.", "danger")
+        sale_price = sale["sale_price"]
+
     db.execute(text(
         "UPDATE sales SET buyer_name=:buyer_name, address=:address, "
-        "phone_number=:phone_number, delivery_by=:delivery_by, delivery_fee=:delivery_fee WHERE id=:id"
+        "phone_number=:phone_number, delivery_by=:delivery_by, delivery_fee=:delivery_fee, "
+        "sale_price=:sale_price WHERE id=:id"
     ), {
         "buyer_name": request.form.get("buyer_name", "").strip(),
         "address": request.form.get("address", "").strip(),
         "phone_number": request.form.get("phone_number", "").strip(),
         "delivery_by": request.form.get("delivery_by", "").strip(),
         "delivery_fee": parse_float(request.form.get("delivery_fee"), 0),
+        "sale_price": sale_price,
         "id": sale_id,
     })
     db.commit()
