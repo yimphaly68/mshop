@@ -105,6 +105,31 @@ other_income = Table(
     Column("created_at", DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")),
 )
 
+settings = Table(
+    "settings",
+    metadata,
+    Column("key", Text, primary_key=True),
+    Column("value", Text),
+)
+
+
+def get_setting(conn, key, default=None):
+    row = conn.execute(text("SELECT value FROM settings WHERE key = :key"), {"key": key}).mappings().first()
+    return row["value"] if row and row["value"] is not None else default
+
+
+def set_setting(conn, key, value):
+    if engine.dialect.name == "sqlite":
+        conn.execute(text(
+            "INSERT INTO settings (key, value) VALUES (:key, :value) "
+            "ON CONFLICT(key) DO UPDATE SET value = :value"
+        ), {"key": key, "value": value})
+    else:
+        conn.execute(text(
+            "INSERT INTO settings (key, value) VALUES (:key, :value) "
+            "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value"
+        ), {"key": key, "value": value})
+
 
 def _existing_columns(conn, table_name):
     if engine.dialect.name == "sqlite":

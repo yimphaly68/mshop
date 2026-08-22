@@ -27,6 +27,9 @@
         <li class="nav-item"><a class="nav-link {{ 'active' if request.endpoint=='expenses_list' }}" href="{{ url_for('expenses_list') }}"><i class="bi bi-wallet2 me-1"></i>Expenses-ចំណាយផ្សេងៗ</a></li>
         <li class="nav-item"><a class="nav-link {{ 'active' if request.endpoint=='income_list' }}" href="{{ url_for('income_list') }}"><i class="bi bi-cash-coin me-1"></i>Income-ចំណូលផ្សេងៗ</a></li>
         <li class="nav-item"><a class="nav-link {{ 'active' if request.endpoint=='reports' }}" href="{{ url_for('reports') }}"><i class="bi bi-graph-up-arrow me-1"></i>Report-របាយការណ៍</a></li>
+        {% if is_admin() %}
+        <li class="nav-item"><a class="nav-link {{ 'active' if request.endpoint=='settings' }}" href="{{ url_for('settings') }}"><i class="bi bi-gear me-1"></i>Settings</a></li>
+        {% endif %}
         {% if current_username() %}
         <li class="nav-item d-flex align-items-center ms-lg-3">
           <span class="text-white-50 small me-2">

@@ -15,7 +15,7 @@ from sqlalchemy import text
 from werkzeug.security import check_password_hash
 from werkzeug.utils import secure_filename
 
-from db import engine, init_db
+from db import engine, get_setting, init_db, set_setting
 
 load_dotenv()
 
@@ -31,18 +31,21 @@ USE_CLOUDINARY = bool(os.environ.get("CLOUDINARY_URL"))
 if USE_CLOUDINARY:
     cloudinary.config()
 
-TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+def get_telegram_config(db):
+    token = get_setting(db, "telegram_bot_token") or os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = get_setting(db, "telegram_chat_id") or os.environ.get("TELEGRAM_CHAT_ID")
+    return token, chat_id
 
 
-def notify_telegram(message):
+def notify_telegram(db, message):
     """Best-effort Telegram notification. Silently does nothing if not configured,
     and never lets a Telegram failure break the action that triggered it."""
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+    token, chat_id = get_telegram_config(db)
+    if not token or not chat_id:
         return
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = json.dumps({
-        "chat_id": TELEGRAM_CHAT_ID,
+        "chat_id": chat_id,
         "text": message,
         "parse_mode": "HTML",
     }).encode("utf-8")
@@ -371,6 +374,7 @@ def item_new():
 
         variant = ", ".join(v for v in [size, color] if v)
         notify_telegram(
+            db,
             f"🆕 <b>New Item Added</b>\n"
             f"{html.escape(name)}{' (' + html.escape(variant) + ')' if variant else ''}\n"
             f"Qty: {quantity} | Cost: {CURRENCY}{cost_price:.2f} | Sell: {CURRENCY}{sell_price:.2f}"
@@ -521,6 +525,7 @@ def sale_new():
 
     total = quantity * sale_price + delivery_fee
     notify_telegram(
+        db,
         f"💰 <b>New Sale</b>\n"
         f"{quantity} x {html.escape(item['name'])}\n"
         f"Total: {CURRENCY}{total:.2f}"
@@ -720,6 +725,7 @@ def advertising_new():
     flash("Advertising expense logged.", "success")
 
     notify_telegram(
+        db,
         f"📢 <b>Advertising Expense</b>\n"
         f"{html.escape(platform) if platform else 'Advertising'}: {CURRENCY}{amount:.2f}"
     )
@@ -769,6 +775,7 @@ def expense_new():
     flash("Expense logged.", "success")
 
     notify_telegram(
+        db,
         f"💸 <b>Expense Logged</b>\n"
         f"{html.escape(category) if category else 'Expense'}: {CURRENCY}{amount:.2f}"
     )
@@ -878,6 +885,43 @@ def reports():
         date_from=date_from,
         date_to=date_to,
     )
+
+
+@app.route("/settings", methods=["GET", "POST"])
+@admin_required
+def settings():
+    db = get_db()
+
+    if request.method == "POST":
+        new_token = request.form.get("telegram_bot_token", "").strip()
+        new_chat_id = request.form.get("telegram_chat_id", "").strip()
+        if new_token:
+            set_setting(db, "telegram_bot_token", new_token)
+        if new_chat_id:
+            set_setting(db, "telegram_chat_id", new_chat_id)
+        db.commit()
+        flash("Settings saved.", "success")
+        return redirect(url_for("settings"))
+
+    token, chat_id = get_telegram_config(db)
+    return render_template(
+        "settings.html",
+        telegram_token_set=bool(token),
+        telegram_chat_id=chat_id or "",
+    )
+
+
+@app.route("/settings/test-telegram", methods=["POST"])
+@admin_required
+def settings_test_telegram():
+    db = get_db()
+    token, chat_id = get_telegram_config(db)
+    if not token or not chat_id:
+        flash("Set the bot token and chat ID first, then save before testing.", "danger")
+    else:
+        notify_telegram(db, "✅ <b>Test notification</b>\nIf you can see this in your Telegram group, it's working!")
+        flash("Test notification sent — check your Telegram group.", "success")
+    return redirect(url_for("settings"))
 
 
 @app.route("/logout")
