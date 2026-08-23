@@ -115,7 +115,14 @@
         </div>
         <div class="d-flex justify-content-between small mb-2">
           <span>Cost: {{ CURRENCY }}{{ "%.2f"|format(item.cost_price) }}</span>
+          {% if item.discount_price %}
+          <span>
+            <span class="text-decoration-line-through text-muted">{{ CURRENCY }}{{ "%.2f"|format(item.sell_price) }}</span>
+            <span class="text-danger fw-semibold">{{ CURRENCY }}{{ "%.2f"|format(item.discount_price) }}</span>
+          </span>
+          {% else %}
           <span>Sell: {{ CURRENCY }}{{ "%.2f"|format(item.sell_price) }}</span>
+          {% endif %}
         </div>
         <div class="text-muted small mb-2">Added {{ item.date_added }}</div>
       </div>

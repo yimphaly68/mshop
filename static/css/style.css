@@ -316,6 +316,13 @@ body {
   right: 10px;
 }
 
+.feed-card-badge-sale {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  font-size: 0.85rem;
+}
+
 .feed-card-body {
   padding: 12px 14px 14px;
 }
@@ -337,6 +344,14 @@ body {
 .feed-card-price {
   font-weight: 700;
   font-size: 1.1rem;
+}
+
+.feed-card-price-original {
+  font-weight: 400;
+  font-size: 0.9rem;
+  color: #999;
+  text-decoration: line-through;
+  margin-right: 6px;
 }
 
 .btn-telegram {
@@ -395,4 +410,12 @@ body {
 .item-detail-price {
   font-size: 1.6rem;
   font-weight: 700;
+}
+
+.item-detail-price-original {
+  font-weight: 400;
+  font-size: 1.1rem;
+  color: #999;
+  text-decoration: line-through;
+  margin-right: 8px;
 }

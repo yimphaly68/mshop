@@ -14,6 +14,8 @@
       {% endif %}
       {% if item.quantity <= 0 %}
       <span class="badge bg-danger feed-card-badge">Out of Stock</span>
+      {% elif item.discount_price %}
+      <span class="badge bg-danger feed-card-badge-sale">-{{ (100 - (item.discount_price / item.sell_price * 100))|round|int }}%</span>
       {% endif %}
     </div>
     <div class="item-detail-body">
@@ -23,7 +25,14 @@
         {% if item.size %} · Size {{ item.size }}{% endif %}
         {% if item.color %} · {{ item.color }}{% endif %}
       </div>
+      {% if item.discount_price %}
+      <div class="item-detail-price mb-3">
+        <span class="item-detail-price-original">{{ CURRENCY }}{{ "%.2f"|format(item.sell_price) }}</span>
+        <span class="text-danger">{{ CURRENCY }}{{ "%.2f"|format(item.discount_price) }}</span>
+      </div>
+      {% else %}
       <div class="item-detail-price mb-3">{{ CURRENCY }}{{ "%.2f"|format(item.sell_price) }}</div>
+      {% endif %}
       {% set chat_url = telegram_chat_url(public_telegram_username, item.name) %}
       {% if chat_url %}
       <a href="{{ chat_url }}" target="_blank" rel="noopener" class="btn btn-telegram btn-lg" data-item-id="{{ item.id }}">

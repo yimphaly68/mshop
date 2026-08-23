@@ -252,6 +252,17 @@ def parse_float(value, default=0.0):
         return default
 
 
+def parse_optional_float(value):
+    """Like parse_float, but a blank/missing value means "not set" (None)
+    rather than 0 — used for fields where 0 and "no value" mean different things."""
+    if value is None or str(value).strip() == "":
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def parse_int(value, default=0):
     try:
         return int(value)
@@ -492,12 +503,16 @@ def item_new():
         quantity = parse_int(request.form.get("quantity"))
         cost_price = parse_float(request.form.get("cost_price"))
         sell_price = parse_float(request.form.get("sell_price"))
+        discount_price = parse_optional_float(request.form.get("discount_price"))
+        if discount_price is not None and not (0 < discount_price < sell_price):
+            flash("Discount price must be less than the sell price — not saved.", "warning")
+            discount_price = None
 
         db.execute(text(
             "INSERT INTO items (name, category, size, color, cost_price, sell_price, "
-            "quantity, date_added, image_filename, star_rating, notes) "
+            "discount_price, quantity, date_added, image_filename, star_rating, notes) "
             "VALUES (:name, :category, :size, :color, :cost_price, :sell_price, "
-            ":quantity, :date_added, :image_filename, :star_rating, :notes)"
+            ":discount_price, :quantity, :date_added, :image_filename, :star_rating, :notes)"
         ), {
             "name": name,
             "category": request.form.get("category", "").strip(),
@@ -505,6 +520,7 @@ def item_new():
             "color": color,
             "cost_price": cost_price,
             "sell_price": sell_price,
+            "discount_price": discount_price,
             "quantity": quantity,
             "date_added": request.form.get("date_added") or date.today().isoformat(),
             "image_filename": filename,
@@ -544,18 +560,25 @@ def item_edit(item_id):
             delete_photo(filename)
             filename = None
 
+        sell_price = parse_float(request.form.get("sell_price"))
+        discount_price = parse_optional_float(request.form.get("discount_price"))
+        if discount_price is not None and not (0 < discount_price < sell_price):
+            flash("Discount price must be less than the sell price — not saved.", "warning")
+            discount_price = None
+
         db.execute(text(
             "UPDATE items SET name=:name, category=:category, size=:size, color=:color, "
-            "cost_price=:cost_price, sell_price=:sell_price, quantity=:quantity, "
-            "date_added=:date_added, image_filename=:image_filename, star_rating=:star_rating, "
-            "notes=:notes WHERE id=:id"
+            "cost_price=:cost_price, sell_price=:sell_price, discount_price=:discount_price, "
+            "quantity=:quantity, date_added=:date_added, image_filename=:image_filename, "
+            "star_rating=:star_rating, notes=:notes WHERE id=:id"
         ), {
             "name": request.form.get("name", "").strip(),
             "category": request.form.get("category", "").strip(),
             "size": request.form.get("size", "").strip(),
             "color": request.form.get("color", "").strip(),
             "cost_price": parse_float(request.form.get("cost_price")),
-            "sell_price": parse_float(request.form.get("sell_price")),
+            "sell_price": sell_price,
+            "discount_price": discount_price,
             "quantity": parse_int(request.form.get("quantity")),
             "date_added": request.form.get("date_added") or date.today().isoformat(),
             "image_filename": filename,

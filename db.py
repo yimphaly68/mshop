@@ -44,6 +44,7 @@ items = Table(
     Column("color", Text),
     Column("cost_price", Float, nullable=False, server_default="0"),
     Column("sell_price", Float, nullable=False, server_default="0"),
+    Column("discount_price", Float),
     Column("quantity", Integer, nullable=False, server_default="0"),
     Column("date_added", Text, nullable=False),
     Column("image_filename", Text),
@@ -199,6 +200,8 @@ def init_db():
             conn.execute(text("ALTER TABLE items ADD COLUMN star_rating INTEGER NOT NULL DEFAULT 0"))
         if "is_best_seller" in item_columns:
             conn.execute(text("UPDATE items SET star_rating = 5 WHERE is_best_seller = 1 AND star_rating = 0"))
+        if "discount_price" not in item_columns:
+            conn.execute(text("ALTER TABLE items ADD COLUMN discount_price REAL"))
     _run_migration_step(_migrate_items)
 
     def _migrate_sales_refunded(conn):
