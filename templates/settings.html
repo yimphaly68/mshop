@@ -70,4 +70,47 @@
   </div>
 </div>
 
+<div class="card mb-4">
+  <div class="card-header fw-semibold"><i class="bi bi-telegram me-1"></i>Visitor Interest Notifications</div>
+  <div class="card-body">
+    <p class="text-muted small">
+      A separate bot and group, dedicated only to "Chat" button taps on the public
+      storefront — kept apart from the Telegram Notifications bot above, which
+      handles sales/items/expenses. Create a new bot with <strong>@BotFather</strong>
+      and a new group for this, then fill in its token and chat ID below.
+    </p>
+    <form method="post" action="{{ url_for('admin.settings') }}" class="row g-3">
+      <div class="col-md-6">
+        <label class="form-label small">Bot Token</label>
+        <input type="password" name="chat_click_bot_token" class="form-control"
+          placeholder="{{ 'Token is set — leave blank to keep it' if chat_click_token_set else 'e.g. 123456789:AAExxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' }}">
+        {% if chat_click_token_set %}
+        <div class="form-text text-success"><i class="bi bi-check-circle-fill"></i> A token is currently saved.</div>
+        {% else %}
+        <div class="form-text">Get this from <strong>@BotFather</strong> after creating a new bot with <code>/newbot</code>.</div>
+        {% endif %}
+      </div>
+      <div class="col-md-6">
+        <label class="form-label small">Group Chat ID</label>
+        <input type="text" name="chat_click_chat_id" class="form-control" value="{{ chat_click_chat_id }}" placeholder="e.g. -1001234567890">
+        <div class="form-text">
+          Add this bot to your new group, send any message there, then visit
+          <code>https://api.telegram.org/bot&lt;TOKEN&gt;/getUpdates</code> in a browser and copy the
+          <code>"chat":{"id": ...}</code> number.
+        </div>
+      </div>
+      <div class="col-12">
+        <button class="btn btn-primary" type="submit"><i class="bi bi-check-lg me-1"></i>Save Settings</button>
+      </div>
+    </form>
+
+    <hr>
+
+    <form method="post" action="{{ url_for('admin.settings_test_chat_click_telegram') }}">
+      <button class="btn btn-outline-dark" type="submit"><i class="bi bi-send me-1"></i>Send Test Notification</button>
+      <span class="text-muted small ms-2">Sends a test message to confirm it's working.</span>
+    </form>
+  </div>
+</div>
+
 {% endblock %}

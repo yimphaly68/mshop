@@ -41,48 +41,49 @@ if USE_CLOUDINARY:
     cloudinary.config()
 
 def get_telegram_config(db):
+    """Bot used for business-ops notifications (new sale, new item, expenses)."""
     token = get_setting(db, "telegram_bot_token") or os.environ.get("TELEGRAM_BOT_TOKEN")
     chat_id = get_setting(db, "telegram_chat_id") or os.environ.get("TELEGRAM_CHAT_ID")
     return token, chat_id
 
 
-def notify_telegram(db, message):
-    """Best-effort Telegram notification. Silently does nothing if not configured,
+def get_chat_click_telegram_config(db):
+    """Separate bot used only for "visitor tapped Chat" photo notifications, kept
+    apart from the business-ops bot above so the two groups don't mix."""
+    token = get_setting(db, "chat_click_bot_token")
+    chat_id = get_setting(db, "chat_click_chat_id")
+    return token, chat_id
+
+
+def _telegram_post(token, method, payload):
+    """Best-effort call to the Telegram Bot API. Silently does nothing on failure,
     and never lets a Telegram failure break the action that triggered it."""
-    token, chat_id = get_telegram_config(db)
-    if not token or not chat_id:
-        return
-    url = f"https://api.telegram.org/bot{token}/sendMessage"
-    payload = json.dumps({
-        "chat_id": chat_id,
-        "text": message,
-        "parse_mode": "HTML",
-    }).encode("utf-8")
-    req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+    url = f"https://api.telegram.org/bot{token}/{method}"
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
     try:
         urllib.request.urlopen(req, timeout=5)
     except (urllib.error.URLError, urllib.error.HTTPError):
         pass
 
 
-def notify_telegram_photo(db, photo, caption):
-    """Best-effort Telegram photo notification (same failure semantics as
-    notify_telegram). `photo` must be a publicly reachable https:// URL."""
+def notify_telegram(db, message):
     token, chat_id = get_telegram_config(db)
+    if not token or not chat_id:
+        return
+    _telegram_post(token, "sendMessage", {"chat_id": chat_id, "text": message, "parse_mode": "HTML"})
+
+
+def notify_telegram_photo(token, chat_id, photo, caption):
+    """`photo` must be a publicly reachable https:// URL — Telegram fetches it itself."""
     if not token or not chat_id or not photo:
         return
-    url = f"https://api.telegram.org/bot{token}/sendPhoto"
-    payload = json.dumps({
+    _telegram_post(token, "sendPhoto", {
         "chat_id": chat_id,
         "photo": photo,
         "caption": caption,
         "parse_mode": "HTML",
-    }).encode("utf-8")
-    req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
-    try:
-        urllib.request.urlopen(req, timeout=5)
-    except (urllib.error.URLError, urllib.error.HTTPError):
-        pass
+    })
 
 app = Flask(__name__)
 # Traefik terminates HTTPS and forwards plain HTTP to this container; without this,
@@ -1102,6 +1103,14 @@ def settings():
             set_setting(db, "telegram_bot_token", new_token)
         if new_chat_id:
             set_setting(db, "telegram_chat_id", new_chat_id)
+
+        new_chat_click_token = request.form.get("chat_click_bot_token", "").strip()
+        new_chat_click_chat_id = request.form.get("chat_click_chat_id", "").strip()
+        if new_chat_click_token:
+            set_setting(db, "chat_click_bot_token", new_chat_click_token)
+        if new_chat_click_chat_id:
+            set_setting(db, "chat_click_chat_id", new_chat_click_chat_id)
+
         if "public_telegram_username" in request.form:
             public_telegram_username = request.form.get("public_telegram_username", "").strip().lstrip("@")
             set_setting(db, "public_telegram_username", public_telegram_username)
@@ -1110,10 +1119,13 @@ def settings():
         return redirect(url_for("admin.settings"))
 
     token, chat_id = get_telegram_config(db)
+    chat_click_token, chat_click_chat_id = get_chat_click_telegram_config(db)
     return render_template(
         "settings.html",
         telegram_token_set=bool(token),
         telegram_chat_id=chat_id or "",
+        chat_click_token_set=bool(chat_click_token),
+        chat_click_chat_id=chat_click_chat_id or "",
         public_telegram_username=get_setting(db, "public_telegram_username") or "",
     )
 
@@ -1127,6 +1139,23 @@ def settings_test_telegram():
         flash("Set the bot token and chat ID first, then save before testing.", "danger")
     else:
         notify_telegram(db, "✅ <b>Test notification</b>\nIf you can see this in your Telegram group, it's working!")
+        flash("Test notification sent — check your Telegram group.", "success")
+    return redirect(url_for("admin.settings"))
+
+
+@admin_bp.route("/settings/test-chat-click-telegram", methods=["POST"])
+@admin_required
+def settings_test_chat_click_telegram():
+    db = get_db()
+    token, chat_id = get_chat_click_telegram_config(db)
+    if not token or not chat_id:
+        flash("Set this bot's token and group chat ID first, then save before testing.", "danger")
+    else:
+        _telegram_post(token, "sendMessage", {
+            "chat_id": chat_id,
+            "text": "✅ <b>Test notification</b>\nIf you can see this in your Telegram group, it's working!",
+            "parse_mode": "HTML",
+        })
         flash("Test notification sent — check your Telegram group.", "success")
     return redirect(url_for("admin.settings"))
 
@@ -1203,7 +1232,8 @@ def chat_click(item_id):
                 f"{html.escape(item['name'])}\n"
                 f"{CURRENCY}{item['sell_price']:.2f}"
             )
-            notify_telegram_photo(db, photo, caption)
+            token, chat_id = get_chat_click_telegram_config(db)
+            notify_telegram_photo(token, chat_id, photo, caption)
     return ("", 204)
 
 
