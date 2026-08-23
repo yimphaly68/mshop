@@ -113,6 +113,13 @@ settings = Table(
     Column("value", Text),
 )
 
+visitor_pings = Table(
+    "visitor_pings",
+    metadata,
+    Column("session_id", Text, primary_key=True),
+    Column("last_seen", DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")),
+)
+
 
 def get_setting(conn, key, default=None):
     row = conn.execute(text("SELECT value FROM settings WHERE key = :key"), {"key": key}).mappings().first()
@@ -130,6 +137,37 @@ def set_setting(conn, key, value):
             "INSERT INTO settings (key, value) VALUES (:key, :value) "
             "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value"
         ), {"key": key, "value": value})
+
+
+def record_visitor_ping(conn, session_id):
+    """Upsert a visitor's last-seen timestamp, then sweep pings older than a day
+    so the table doesn't grow forever."""
+    if engine.dialect.name == "sqlite":
+        conn.execute(text(
+            "INSERT INTO visitor_pings (session_id, last_seen) VALUES (:sid, CURRENT_TIMESTAMP) "
+            "ON CONFLICT(session_id) DO UPDATE SET last_seen = CURRENT_TIMESTAMP"
+        ), {"sid": session_id})
+        conn.execute(text("DELETE FROM visitor_pings WHERE last_seen < datetime('now', '-1 day')"))
+    else:
+        conn.execute(text(
+            "INSERT INTO visitor_pings (session_id, last_seen) VALUES (:sid, CURRENT_TIMESTAMP) "
+            "ON CONFLICT (session_id) DO UPDATE SET last_seen = CURRENT_TIMESTAMP"
+        ), {"sid": session_id})
+        conn.execute(text("DELETE FROM visitor_pings WHERE last_seen < NOW() - INTERVAL '1 day'"))
+
+
+def count_live_visitors(conn, active_within_seconds=90):
+    if engine.dialect.name == "sqlite":
+        row = conn.execute(text(
+            "SELECT COUNT(*) AS n FROM visitor_pings "
+            "WHERE last_seen >= datetime('now', :cutoff)"
+        ), {"cutoff": f"-{active_within_seconds} seconds"}).mappings().first()
+    else:
+        row = conn.execute(text(
+            "SELECT COUNT(*) AS n FROM visitor_pings "
+            "WHERE last_seen >= NOW() - (:cutoff * INTERVAL '1 second')"
+        ), {"cutoff": active_within_seconds}).mappings().first()
+    return row["n"] if row else 0
 
 
 def _existing_columns(conn, table_name):

@@ -35,6 +35,23 @@
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.addEventListener('click', function (e) {
+  var btn = e.target.closest('.btn-telegram');
+  if (!btn) return;
+  var itemId = btn.getAttribute('data-item-id');
+  if (!itemId) return;
+  fetch('/chat-click/' + itemId, { method: 'POST', keepalive: true }).catch(function () {});
+});
+
+(function () {
+  function ping() {
+    fetch('/heartbeat', { method: 'POST', credentials: 'same-origin', keepalive: true }).catch(function () {});
+  }
+  ping();
+  setInterval(ping, 25000);
+})();
+</script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

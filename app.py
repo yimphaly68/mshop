@@ -13,13 +13,18 @@ from functools import wraps
 import cloudinary
 import cloudinary.uploader
 from dotenv import load_dotenv
-from flask import Blueprint, Flask, abort, g, render_template, request, redirect, session, url_for, flash
+from flask import (
+    Blueprint, Flask, abort, g, jsonify, make_response, render_template, request,
+    redirect, session, url_for, flash,
+)
 from sqlalchemy import text
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash
 from werkzeug.utils import secure_filename
 
-from db import engine, get_setting, init_db, set_setting
+from db import (
+    count_live_visitors, engine, get_setting, init_db, record_visitor_ping, set_setting,
+)
 
 load_dotenv()
 
@@ -51,6 +56,26 @@ def notify_telegram(db, message):
     payload = json.dumps({
         "chat_id": chat_id,
         "text": message,
+        "parse_mode": "HTML",
+    }).encode("utf-8")
+    req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+    try:
+        urllib.request.urlopen(req, timeout=5)
+    except (urllib.error.URLError, urllib.error.HTTPError):
+        pass
+
+
+def notify_telegram_photo(db, photo, caption):
+    """Best-effort Telegram photo notification (same failure semantics as
+    notify_telegram). `photo` must be a publicly reachable https:// URL."""
+    token, chat_id = get_telegram_config(db)
+    if not token or not chat_id or not photo:
+        return
+    url = f"https://api.telegram.org/bot{token}/sendPhoto"
+    payload = json.dumps({
+        "chat_id": chat_id,
+        "photo": photo,
+        "caption": caption,
         "parse_mode": "HTML",
     }).encode("utf-8")
     req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
@@ -166,6 +191,17 @@ def photo_url(value):
 
 
 app.jinja_env.globals["photo_url"] = photo_url
+
+
+def absolute_photo_url(value):
+    """Same as photo_url, but always a fully-qualified https:// URL — needed for
+    Telegram's sendPhoto, which fetches the image itself and can't resolve a
+    relative /static/... path."""
+    if not value:
+        return None
+    if value.startswith("http://") or value.startswith("https://"):
+        return value
+    return url_for("static", filename="uploads/" + value, _external=True)
 
 
 def telegram_chat_url(username, item_name=None):
@@ -356,8 +392,11 @@ def dashboard():
     recent_expenses = _date_filtered_rows(db, "expenses", "expense_date", date_from, date_to)
     recent_income = _date_filtered_rows(db, "other_income", "income_date", date_from, date_to)
 
+    live_visitor_count = count_live_visitors(db)
+
     return render_template(
         "dashboard.html",
+        live_visitor_count=live_visitor_count,
         total_items=total_items,
         total_units=total_units,
         stock_value_cost=stock_value_cost,
@@ -382,6 +421,12 @@ def dashboard():
         period_start=period_start,
         period_end=period_end,
     )
+
+
+@admin_bp.route("/api/live-visitors")
+def live_visitors():
+    db = get_db()
+    return jsonify(count=count_live_visitors(db))
 
 
 # ---------------------------------------------------------------------------
@@ -1142,6 +1187,37 @@ def item_detail(item_id):
         similar_items=similar,
         public_telegram_username=public_telegram_username,
     )
+
+
+@public_bp.route("/chat-click/<int:item_id>", methods=["POST"])
+def chat_click(item_id):
+    """A visitor tapped Chat on an item — send its photo to the shop's Telegram
+    group so the owner instantly sees which item is being asked about."""
+    db = get_db()
+    item = db.execute(text("SELECT * FROM items WHERE id = :id"), {"id": item_id}).mappings().first()
+    if item:
+        photo = absolute_photo_url(item["image_filename"])
+        if photo:
+            caption = (
+                f"👀 <b>Visitor tapped Chat</b>\n"
+                f"{html.escape(item['name'])}\n"
+                f"{CURRENCY}{item['sell_price']:.2f}"
+            )
+            notify_telegram_photo(db, photo, caption)
+    return ("", 204)
+
+
+@public_bp.route("/heartbeat", methods=["POST"])
+def heartbeat():
+    """Lightweight presence ping from the public storefront, used to count how
+    many visitors are browsing right now (see admin.live_visitors)."""
+    db = get_db()
+    session_id = request.cookies.get("visitor_id") or uuid.uuid4().hex
+    record_visitor_ping(db, session_id)
+    db.commit()
+    resp = make_response(("", 204))
+    resp.set_cookie("visitor_id", session_id, max_age=60 * 60 * 24, httponly=True, samesite="Lax")
+    return resp
 
 
 # ---------------------------------------------------------------------------

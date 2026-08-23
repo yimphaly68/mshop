@@ -204,6 +204,35 @@ body {
   background-color: var(--brand);
 }
 
+.live-visitors-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #eafaf0;
+  color: #146c43;
+  border: 1px solid #b8ecd0;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.live-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #2fbf6e;
+  box-shadow: 0 0 0 rgba(47, 191, 110, 0.6);
+  animation: live-dot-pulse 1.8s infinite;
+  flex-shrink: 0;
+}
+
+@keyframes live-dot-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(47, 191, 110, 0.6); }
+  70% { box-shadow: 0 0 0 7px rgba(47, 191, 110, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(47, 191, 110, 0); }
+}
+
 /* ------------------------------------------------------------------------
    Public storefront (Facebook-style feed)
    ------------------------------------------------------------------------ */
