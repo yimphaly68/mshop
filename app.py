@@ -1,3 +1,4 @@
+import calendar
 import html
 import json
 import os
@@ -196,6 +197,46 @@ def parse_int(value, default=0):
         return default
 
 
+DASHBOARD_PERIODS = [
+    ("today", "Today"),
+    ("yesterday", "Yesterday"),
+    ("this_week", "This Week"),
+    ("last_week", "Last Week"),
+    ("this_month", "This Month"),
+    ("last_month", "Last Month"),
+    ("this_year", "This Year"),
+    ("last_year", "Last Year"),
+]
+DASHBOARD_PERIOD_KEYS = {key for key, _ in DASHBOARD_PERIODS}
+
+
+def _period_range(period):
+    today = date.today()
+    if period == "today":
+        return today, today
+    if period == "yesterday":
+        d = today - timedelta(days=1)
+        return d, d
+    if period == "this_week":
+        start = today - timedelta(days=today.weekday())
+        return start, start + timedelta(days=6)
+    if period == "last_week":
+        start = today - timedelta(days=today.weekday() + 7)
+        return start, start + timedelta(days=6)
+    if period == "this_month":
+        start = today.replace(day=1)
+        end = today.replace(day=calendar.monthrange(today.year, today.month)[1])
+        return start, end
+    if period == "last_month":
+        last_month_end = today.replace(day=1) - timedelta(days=1)
+        return last_month_end.replace(day=1), last_month_end
+    if period == "this_year":
+        return date(today.year, 1, 1), date(today.year, 12, 31)
+    if period == "last_year":
+        return date(today.year - 1, 1, 1), date(today.year - 1, 12, 31)
+    return None, None
+
+
 def _date_filtered_total(db, table, date_column, date_from, date_to):
     sql = f"SELECT COALESCE(SUM(amount),0) AS total FROM {table} WHERE 1=1"
     params = {}
@@ -216,6 +257,14 @@ def _date_filtered_total(db, table, date_column, date_from, date_to):
 def dashboard():
     db = get_db()
 
+    period = request.args.get("period", "")
+    if period not in DASHBOARD_PERIOD_KEYS:
+        period = ""
+    period_start, period_end = _period_range(period)
+    date_from = period_start.isoformat() if period_start else ""
+    date_to = period_end.isoformat() if period_end else ""
+    period_label = dict(DASHBOARD_PERIODS).get(period, "All Time")
+
     items = db.execute(text("SELECT * FROM items")).mappings().all()
     total_items = len(items)
     total_units = sum(i["quantity"] for i in items)
@@ -233,43 +282,41 @@ def dashboard():
         reverse=True,
     )[:5]
 
+    sales_where = " WHERE 1=1"
+    sales_params = {}
+    if date_from:
+        sales_where += " AND s.sale_date >= :date_from"
+        sales_params["date_from"] = date_from
+    if date_to:
+        sales_where += " AND s.sale_date <= :date_to"
+        sales_params["date_to"] = date_to
+
     sales_summary = db.execute(text(
-        "SELECT COALESCE(SUM(quantity - refunded_quantity),0) AS units_sold, "
-        "COALESCE(SUM((quantity - refunded_quantity) * sale_price),0) AS gross_revenue, "
-        "COALESCE(SUM(discount),0) AS total_discount "
-        "FROM sales"
-    )).mappings().one()
+        "SELECT COALESCE(SUM(s.quantity - s.refunded_quantity),0) AS units_sold, "
+        "COALESCE(SUM((s.quantity - s.refunded_quantity) * s.sale_price),0) AS gross_revenue, "
+        "COALESCE(SUM(s.discount),0) AS total_discount "
+        "FROM sales s" + sales_where
+    ), sales_params).mappings().one()
 
     cogs_row = db.execute(text(
         "SELECT COALESCE(SUM((s.quantity - s.refunded_quantity) * i.cost_price),0) AS cogs "
-        "FROM sales s JOIN items i ON i.id = s.item_id"
-    )).mappings().one()
+        "FROM sales s JOIN items i ON i.id = s.item_id" + sales_where
+    ), sales_params).mappings().one()
 
-    ad_spend_row = db.execute(text(
-        "SELECT COALESCE(SUM(amount),0) AS total FROM advertising"
-    )).mappings().one()
-
-    other_expenses_row = db.execute(text(
-        "SELECT COALESCE(SUM(amount),0) AS total FROM expenses"
-    )).mappings().one()
-
-    other_income_row = db.execute(text(
-        "SELECT COALESCE(SUM(amount),0) AS total FROM other_income"
-    )).mappings().one()
+    ad_spend = _date_filtered_total(db, "advertising", "expense_date", date_from, date_to)
+    other_expenses = _date_filtered_total(db, "expenses", "expense_date", date_from, date_to)
+    other_income = _date_filtered_total(db, "other_income", "income_date", date_from, date_to)
 
     revenue = (sales_summary["gross_revenue"] or 0) - (sales_summary["total_discount"] or 0)
     cogs = cogs_row["cogs"] or 0
-    ad_spend = ad_spend_row["total"] or 0
-    other_expenses = other_expenses_row["total"] or 0
-    other_income = other_income_row["total"] or 0
     gross_profit = revenue - cogs
     net_profit = gross_profit + other_income - ad_spend - other_expenses
 
     recent_sales = db.execute(text(
         "SELECT s.*, i.name AS item_name, i.size AS item_size, i.color AS item_color "
-        "FROM sales s JOIN items i ON i.id = s.item_id "
-        "ORDER BY s.sale_date DESC, s.id DESC LIMIT 8"
-    )).mappings().all()
+        "FROM sales s JOIN items i ON i.id = s.item_id" + sales_where +
+        " ORDER BY s.sale_date DESC, s.id DESC LIMIT 8"
+    ), sales_params).mappings().all()
 
     return render_template(
         "dashboard.html",
@@ -291,6 +338,11 @@ def dashboard():
         gross_profit=gross_profit,
         net_profit=net_profit,
         recent_sales=recent_sales,
+        dashboard_periods=DASHBOARD_PERIODS,
+        period=period,
+        period_label=period_label,
+        period_start=period_start,
+        period_end=period_end,
     )
 
 
