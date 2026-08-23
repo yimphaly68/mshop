@@ -15,6 +15,7 @@ import cloudinary.uploader
 from dotenv import load_dotenv
 from flask import Blueprint, Flask, abort, g, render_template, request, redirect, session, url_for, flash
 from sqlalchemy import text
+from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash
 from werkzeug.utils import secure_filename
 
@@ -59,6 +60,11 @@ def notify_telegram(db, message):
         pass
 
 app = Flask(__name__)
+# Traefik terminates HTTPS and forwards plain HTTP to this container; without this,
+# Flask doesn't know the original request was HTTPS and builds http:// URLs for
+# things like the automatic trailing-slash redirect (e.g. /pe -> /pe/), which
+# Traefik then has no route for (it only listens on the HTTPS entrypoint) — a 404.
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-stock-control-secret")
 app.config["MAX_CONTENT_LENGTH"] = 8 * 1024 * 1024  # 8 MB upload limit
 app.config["SESSION_COOKIE_SECURE"] = os.environ.get("SESSION_COOKIE_SECURE", "1") == "1"
