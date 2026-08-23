@@ -249,6 +249,20 @@ def _date_filtered_total(db, table, date_column, date_from, date_to):
     return db.execute(text(sql), params).mappings().one()["total"] or 0
 
 
+def _date_filtered_rows(db, table, date_column, date_from, date_to, limit=8):
+    sql = f"SELECT * FROM {table} WHERE 1=1"
+    params = {}
+    if date_from:
+        sql += f" AND {date_column} >= :date_from"
+        params["date_from"] = date_from
+    if date_to:
+        sql += f" AND {date_column} <= :date_to"
+        params["date_to"] = date_to
+    sql += f" ORDER BY {date_column} DESC, id DESC LIMIT :limit"
+    params["limit"] = limit
+    return db.execute(text(sql), params).mappings().all()
+
+
 # ---------------------------------------------------------------------------
 # Dashboard
 # ---------------------------------------------------------------------------
@@ -272,10 +286,6 @@ def dashboard():
     stock_value_retail = sum(i["quantity"] * i["sell_price"] for i in items)
     out_of_stock = [i for i in items if i["quantity"] <= 0]
     low_stock = [i for i in items if 0 < i["quantity"] <= LOW_STOCK_THRESHOLD]
-    restock_items = sorted(
-        (i for i in items if 0 < i["quantity"] <= RESTOCK_ALERT_THRESHOLD),
-        key=lambda i: (i["quantity"], i["name"]),
-    )
     best_sellers = sorted(
         (i for i in items if i["star_rating"] >= 4),
         key=lambda i: i["star_rating"],
@@ -318,6 +328,9 @@ def dashboard():
         " ORDER BY s.sale_date DESC, s.id DESC LIMIT 8"
     ), sales_params).mappings().all()
 
+    recent_expenses = _date_filtered_rows(db, "expenses", "expense_date", date_from, date_to)
+    recent_income = _date_filtered_rows(db, "other_income", "income_date", date_from, date_to)
+
     return render_template(
         "dashboard.html",
         total_items=total_items,
@@ -326,8 +339,6 @@ def dashboard():
         stock_value_retail=stock_value_retail,
         out_of_stock=out_of_stock,
         low_stock=low_stock,
-        restock_items=restock_items,
-        restock_alert_threshold=RESTOCK_ALERT_THRESHOLD,
         best_sellers=best_sellers,
         units_sold=sales_summary["units_sold"] or 0,
         revenue=revenue,
@@ -338,6 +349,8 @@ def dashboard():
         gross_profit=gross_profit,
         net_profit=net_profit,
         recent_sales=recent_sales,
+        recent_expenses=recent_expenses,
+        recent_income=recent_income,
         dashboard_periods=DASHBOARD_PERIODS,
         period=period,
         period_label=period_label,
@@ -380,6 +393,9 @@ def items_list():
     categories = db.execute(text(
         "SELECT DISTINCT category FROM items WHERE category IS NOT NULL AND category != '' ORDER BY category"
     )).mappings().all()
+    restock_items = db.execute(text(
+        "SELECT * FROM items WHERE quantity > 0 AND quantity <= :threshold ORDER BY quantity, name"
+    ), {"threshold": RESTOCK_ALERT_THRESHOLD}).mappings().all()
 
     return render_template(
         "items.html",
@@ -389,6 +405,8 @@ def items_list():
         category=category,
         categories=categories,
         low_stock_threshold=LOW_STOCK_THRESHOLD,
+        restock_items=restock_items,
+        restock_alert_threshold=RESTOCK_ALERT_THRESHOLD,
     )
 
 

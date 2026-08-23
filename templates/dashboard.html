@@ -62,58 +62,6 @@
   </div>
 </div>
 
-{% if restock_items %}
-<div class="card mb-4 restock-alert-card">
-  <div class="card-header fw-semibold text-danger">
-    <i class="bi bi-exclamation-triangle-fill me-1"></i>
-    Restock Alert — {{ restock_items|length }} item{{ 's' if restock_items|length != 1 }} with 1-{{ restock_alert_threshold }} left in stock
-  </div>
-  <div id="restockCarousel" class="carousel slide" data-bs-interval="false">
-    <div class="carousel-inner">
-      {% for group in restock_items|batch(4) %}
-      <div class="carousel-item {{ 'active' if loop.first }}">
-        <div class="row g-3 p-3">
-          {% for item in group %}
-          <div class="col-6 col-md-3">
-            <div class="restock-item-card">
-              {% if item.image_filename %}
-              <img src="{{ photo_url(item.image_filename) }}" class="restock-item-photo" alt="{{ item.name }}">
-              {% else %}
-              <div class="restock-item-photo restock-item-placeholder"><i class="bi bi-image"></i></div>
-              {% endif %}
-              <div class="p-2">
-                <div class="small fw-semibold text-truncate">{{ item.name }}</div>
-                <div class="text-muted small">
-                  {% if item.size %}{{ item.size }}{% endif %}{% if item.color %}{{ ', ' if item.size }}{{ item.color }}{% endif %}
-                </div>
-                <span class="badge {{ 'bg-danger' if item.quantity <= 0 else 'bg-warning text-dark' }}">
-                  {{ 'out of stock' if item.quantity <= 0 else item.quantity ~ ' left' }}
-                </span>
-              </div>
-            </div>
-          </div>
-          {% endfor %}
-        </div>
-      </div>
-      {% endfor %}
-    </div>
-    {% if restock_items|batch(4)|list|length > 1 %}
-    <button class="carousel-control-prev" type="button" data-bs-target="#restockCarousel" data-bs-slide="prev">
-      <span class="carousel-control-prev-icon" aria-hidden="true"></span>
-    </button>
-    <button class="carousel-control-next" type="button" data-bs-target="#restockCarousel" data-bs-slide="next">
-      <span class="carousel-control-next-icon" aria-hidden="true"></span>
-    </button>
-    <div class="carousel-indicators position-relative mt-2">
-      {% for group in restock_items|batch(4) %}
-      <button type="button" data-bs-target="#restockCarousel" data-bs-slide-to="{{ loop.index0 }}" class="{{ 'active' if loop.first }}"></button>
-      {% endfor %}
-    </div>
-    {% endif %}
-  </div>
-</div>
-{% endif %}
-
 <div class="row g-3 mb-4">
   <div class="col-md-8">
     <div class="card h-100">
@@ -201,6 +149,51 @@
         <li class="list-group-item text-muted">No sales recorded yet.</li>
         {% endfor %}
       </ul>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mt-1">
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header fw-semibold"><i class="bi bi-wallet2 me-1"></i>Recent Expenses-ចំណាយផ្សេងៗ</div>
+      <ul class="list-group list-group-flush">
+        {% for e in recent_expenses %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          <span>
+            {{ e.expense_date }} — {{ e.category or 'Expense' }}
+            {% if e.description %}<br><span class="text-muted small">{{ e.description }}</span>{% endif %}
+          </span>
+          <span class="fw-semibold text-danger">-{{ CURRENCY }}{{ "%.2f"|format(e.amount) }}</span>
+        </li>
+        {% else %}
+        <li class="list-group-item text-muted">No expenses recorded yet.</li>
+        {% endfor %}
+      </ul>
+      <div class="card-footer text-end">
+        <a href="{{ url_for('expenses_list') }}" class="small">View all expenses <i class="bi bi-arrow-right"></i></a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header fw-semibold"><i class="bi bi-cash-coin me-1"></i>Recent Income-ចំណូលផ្សេងៗ</div>
+      <ul class="list-group list-group-flush">
+        {% for inc in recent_income %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          <span>
+            {{ inc.income_date }} — {{ inc.source or 'Income' }}
+            {% if inc.description %}<br><span class="text-muted small">{{ inc.description }}</span>{% endif %}
+          </span>
+          <span class="fw-semibold text-success">+{{ CURRENCY }}{{ "%.2f"|format(inc.amount) }}</span>
+        </li>
+        {% else %}
+        <li class="list-group-item text-muted">No income recorded yet.</li>
+        {% endfor %}
+      </ul>
+      <div class="card-footer text-end">
+        <a href="{{ url_for('income_list') }}" class="small">View all income <i class="bi bi-arrow-right"></i></a>
+      </div>
     </div>
   </div>
 </div>
