@@ -27,6 +27,10 @@
         <label class="form-label small">Sale price ({{ CURRENCY }})</label>
         <input type="number" step="0.01" min="0" name="sale_price" id="salePriceInput" class="form-control">
       </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label small">Discount-បញ្ចុះតម្លៃ ({{ CURRENCY }})</label>
+        <input type="number" step="0.01" min="0" name="discount" class="form-control" placeholder="0.00">
+      </div>
       <div class="col-md-2">
         <label class="form-label small">Buyer name-ឈ្មោះអ្នកទិញ</label>
         <input type="text" name="buyer_name" class="form-control" placeholder="Optional">
@@ -105,13 +109,16 @@
           <td>{{ remaining }}</td>
           <td>{{ CURRENCY }}{{ "%.2f"|format(s.sale_price) }}</td>
           <td>
-            {{ CURRENCY }}{{ "%.2f"|format(remaining * s.sale_price + s.delivery_fee) }}
+            {{ CURRENCY }}{{ "%.2f"|format(remaining * s.sale_price - s.discount + s.delivery_fee) }}
             {% if s.delivery_fee > 0 %}
             <br><span class="text-muted small">(+{{ CURRENCY }}{{ "%.2f"|format(s.delivery_fee) }} delivery)</span>
             {% endif %}
+            {% if s.discount > 0 %}
+            <br><span class="text-muted small">(-{{ CURRENCY }}{{ "%.2f"|format(s.discount) }} discount)</span>
+            {% endif %}
           </td>
-          <td class="{{ 'text-success' if (s.sale_price - s.item_cost_price) >= 0 else 'text-danger' }}">
-            {{ CURRENCY }}{{ "%.2f"|format((s.sale_price - s.item_cost_price) * remaining) }}
+          <td class="{{ 'text-success' if ((s.sale_price - s.item_cost_price) * remaining - s.discount) >= 0 else 'text-danger' }}">
+            {{ CURRENCY }}{{ "%.2f"|format((s.sale_price - s.item_cost_price) * remaining - s.discount) }}
           </td>
           <td class="text-end">
             <div class="d-flex justify-content-end gap-1">
@@ -124,7 +131,8 @@
                 data-phone-number="{{ s.phone_number or '' }}"
                 data-delivery-by="{{ s.delivery_by or '' }}"
                 data-delivery-fee="{{ s.delivery_fee }}"
-                data-sale-price="{{ s.sale_price }}">
+                data-sale-price="{{ s.sale_price }}"
+                data-discount="{{ s.discount }}">
                 <i class="bi bi-pencil-square"></i>
               </button>
               <a href="{{ url_for('sale_receipt', sale_id=s.id) }}" target="_blank" class="btn btn-sm btn-outline-dark" title="Print receipt">
@@ -241,6 +249,10 @@
           <div class="form-text">Fixes a wrong price entered when the sale was recorded.</div>
         </div>
         <div class="mb-3">
+          <label class="form-label small">Discount-បញ្ចុះតម្លៃ ({{ CURRENCY }})</label>
+          <input type="number" step="0.01" min="0" name="discount" id="editDiscount" class="form-control" placeholder="0.00">
+        </div>
+        <div class="mb-3">
           <label class="form-label small">Buyer name-ឈ្មោះអ្នកទិញ</label>
           <input type="text" name="buyer_name" id="editBuyerName" class="form-control" placeholder="Optional">
         </div>
@@ -309,6 +321,7 @@ document.getElementById('editDeliveryModal').addEventListener('show.bs.modal', f
   const saleId = btn.getAttribute('data-sale-id');
   document.getElementById('editDeliveryItemLabel').textContent = btn.getAttribute('data-item-label');
   document.getElementById('editSalePrice').value = btn.getAttribute('data-sale-price');
+  document.getElementById('editDiscount').value = btn.getAttribute('data-discount');
   document.getElementById('editBuyerName').value = btn.getAttribute('data-buyer-name');
   document.getElementById('editAddress').value = btn.getAttribute('data-address');
   document.getElementById('editPhoneNumber').value = btn.getAttribute('data-phone-number');

@@ -235,7 +235,8 @@ def dashboard():
 
     sales_summary = db.execute(text(
         "SELECT COALESCE(SUM(quantity - refunded_quantity),0) AS units_sold, "
-        "COALESCE(SUM((quantity - refunded_quantity) * sale_price),0) AS revenue "
+        "COALESCE(SUM((quantity - refunded_quantity) * sale_price),0) AS gross_revenue, "
+        "COALESCE(SUM(discount),0) AS total_discount "
         "FROM sales"
     )).mappings().one()
 
@@ -256,7 +257,7 @@ def dashboard():
         "SELECT COALESCE(SUM(amount),0) AS total FROM other_income"
     )).mappings().one()
 
-    revenue = sales_summary["revenue"] or 0
+    revenue = (sales_summary["gross_revenue"] or 0) - (sales_summary["total_discount"] or 0)
     cogs = cogs_row["cogs"] or 0
     ad_spend = ad_spend_row["total"] or 0
     other_expenses = other_expenses_row["total"] or 0
@@ -499,12 +500,14 @@ def sale_new():
     sale_date = request.form.get("sale_date") or date.today().isoformat()
     buyer_name = request.form.get("buyer_name", "").strip()
     delivery_fee = parse_float(request.form.get("delivery_fee"), 0)
+    discount = parse_float(request.form.get("discount"), 0)
+    discount = max(0, min(discount, quantity * sale_price))
 
     db.execute(text(
         "INSERT INTO sales (item_id, quantity, sale_price, sale_date, buyer_name, address, "
-        "phone_number, delivery_by, delivery_fee) "
+        "phone_number, delivery_by, delivery_fee, discount) "
         "VALUES (:item_id, :quantity, :sale_price, :sale_date, :buyer_name, :address, "
-        ":phone_number, :delivery_by, :delivery_fee)"
+        ":phone_number, :delivery_by, :delivery_fee, :discount)"
     ), {
         "item_id": item_id,
         "quantity": quantity,
@@ -515,6 +518,7 @@ def sale_new():
         "phone_number": request.form.get("phone_number", "").strip(),
         "delivery_by": request.form.get("delivery_by", "").strip(),
         "delivery_fee": delivery_fee,
+        "discount": discount,
     })
     db.execute(
         text("UPDATE items SET quantity = quantity - :quantity WHERE id = :id"),
@@ -523,7 +527,7 @@ def sale_new():
     db.commit()
     flash(f"Sale recorded: {quantity} x {item['name']}.", "success")
 
-    total = quantity * sale_price + delivery_fee
+    total = quantity * sale_price - discount + delivery_fee
     notify_telegram(
         db,
         f"💰 <b>New Sale</b>\n"
@@ -537,7 +541,9 @@ def sale_new():
 @app.route("/sales/<int:sale_id>/edit-delivery", methods=["POST"])
 def sale_edit_delivery(sale_id):
     db = get_db()
-    sale = db.execute(text("SELECT id, sale_price FROM sales WHERE id = :id"), {"id": sale_id}).mappings().first()
+    sale = db.execute(
+        text("SELECT id, quantity, sale_price, discount FROM sales WHERE id = :id"), {"id": sale_id}
+    ).mappings().first()
     if not sale:
         flash("Sale not found.", "danger")
         return redirect(url_for("sales_list"))
@@ -547,10 +553,13 @@ def sale_edit_delivery(sale_id):
         flash("Price must be greater than zero — not updated.", "danger")
         sale_price = sale["sale_price"]
 
+    discount = parse_float(request.form.get("discount"), sale["discount"])
+    discount = max(0, min(discount, sale["quantity"] * sale_price))
+
     db.execute(text(
         "UPDATE sales SET buyer_name=:buyer_name, address=:address, "
         "phone_number=:phone_number, delivery_by=:delivery_by, delivery_fee=:delivery_fee, "
-        "sale_price=:sale_price WHERE id=:id"
+        "sale_price=:sale_price, discount=:discount WHERE id=:id"
     ), {
         "buyer_name": request.form.get("buyer_name", "").strip(),
         "address": request.form.get("address", "").strip(),
@@ -558,6 +567,7 @@ def sale_edit_delivery(sale_id):
         "delivery_by": request.form.get("delivery_by", "").strip(),
         "delivery_fee": parse_float(request.form.get("delivery_fee"), 0),
         "sale_price": sale_price,
+        "discount": discount,
         "id": sale_id,
     })
     db.commit()
@@ -728,6 +738,7 @@ def sale_receipt_combined():
 
     subtotal = sum(s["quantity"] * s["sale_price"] for s in sales)
     delivery_fee = sum(s["delivery_fee"] for s in sales)
+    discount = sum(s["discount"] for s in sales)
 
     return render_template(
         "receipt_combined.html",
@@ -739,7 +750,8 @@ def sale_receipt_combined():
         sale_date=sales[0]["sale_date"],
         subtotal=subtotal,
         delivery_fee=delivery_fee,
-        total=subtotal + delivery_fee,
+        discount=discount,
+        total=subtotal - discount + delivery_fee,
     )
 
 
@@ -899,7 +911,7 @@ def reports():
     sql = (
         "SELECT i.id, i.name, i.size, i.color, i.cost_price, "
         "SUM(s.quantity - s.refunded_quantity) AS units_sold, "
-        "SUM((s.quantity - s.refunded_quantity) * s.sale_price) AS revenue, "
+        "SUM((s.quantity - s.refunded_quantity) * s.sale_price) - SUM(s.discount) AS revenue, "
         "SUM((s.quantity - s.refunded_quantity) * i.cost_price) AS cogs "
         "FROM sales s JOIN items i ON i.id = s.item_id WHERE 1=1"
     )

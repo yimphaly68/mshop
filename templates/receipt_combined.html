@@ -193,6 +193,9 @@
     <hr class="divider">
 
     <div class="row"><span class="label">Subtotal</span><span>{{ CURRENCY }}{{ "%.2f"|format(subtotal) }}</span></div>
+    {% if discount > 0 %}
+    <div class="row"><span class="label">Discount-បញ្ចុះតម្លៃ</span><span>-{{ CURRENCY }}{{ "%.2f"|format(discount) }}</span></div>
+    {% endif %}
     <div class="row"><span class="label">Delivery Fee-ថ្លៃដឹកជញ្ជូន</span><span>{{ 'Free' if delivery_fee == 0 else CURRENCY ~ '%.2f'|format(delivery_fee) }}</span></div>
 
     <hr class="divider">

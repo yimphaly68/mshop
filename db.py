@@ -68,6 +68,7 @@ sales = Table(
     Column("phone_number", Text),
     Column("delivery_by", Text),
     Column("delivery_fee", Float, nullable=False, server_default="0"),
+    Column("discount", Float, nullable=False, server_default="0"),
     Column("created_at", DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")),
     CheckConstraint("refunded_quantity BETWEEN 0 AND quantity", name="ck_sales_refunded_quantity"),
 )
@@ -189,3 +190,8 @@ def init_db():
         if "delivery_fee" not in sales_columns:
             conn.execute(text("ALTER TABLE sales ADD COLUMN delivery_fee REAL NOT NULL DEFAULT 0"))
     _run_migration_step(_migrate_sales_delivery_info)
+
+    def _migrate_sales_discount(conn):
+        if "discount" not in _existing_columns(conn, "sales"):
+            conn.execute(text("ALTER TABLE sales ADD COLUMN discount REAL NOT NULL DEFAULT 0"))
+    _run_migration_step(_migrate_sales_discount)
