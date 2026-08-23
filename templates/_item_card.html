@@ -20,12 +20,12 @@
       <span class="feed-card-price">{{ CURRENCY }}{{ "%.2f"|format(item.sell_price) }}</span>
       <div class="d-flex gap-2">
         <a href="{{ url_for('public.item_detail', item_id=item.id) }}" class="btn btn-sm btn-outline-dark">
-          <i class="bi bi-grid-3x3-gap me-1"></i>Similar
+          <i class="bi bi-grid-3x3-gap me-1"></i>Similar-មើលបន្ថែមស្រដៀងនេះ
         </a>
         {% set chat_url = telegram_chat_url(public_telegram_username, item.name) %}
         {% if chat_url %}
         <a href="{{ chat_url }}" target="_blank" rel="noopener" class="btn btn-sm btn-telegram" data-item-id="{{ item.id }}">
-          <i class="bi bi-telegram me-1"></i>Chat
+          <i class="bi bi-telegram me-1"></i>Chat-សួរតាមតេលេក្រាម
         </a>
         {% endif %}
       </div>
