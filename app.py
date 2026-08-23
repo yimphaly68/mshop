@@ -699,6 +699,50 @@ def sale_receipt(sale_id):
     return render_template("receipt.html", sale=sale)
 
 
+@app.route("/sales/receipt-combined")
+def sale_receipt_combined():
+    db = get_db()
+    sale_ids = [parse_int(x) for x in request.args.get("ids", "").split(",") if x.strip().isdigit()]
+    sale_ids = [i for i in sale_ids if i > 0]
+    if not sale_ids:
+        flash("No sales selected to print.", "danger")
+        return redirect(url_for("sales_list"))
+
+    placeholders = ", ".join(f":id{i}" for i in range(len(sale_ids)))
+    params = {f"id{i}": sid for i, sid in enumerate(sale_ids)}
+    sales = db.execute(text(
+        "SELECT s.*, i.name AS item_name, i.size AS item_size, i.color AS item_color "
+        f"FROM sales s JOIN items i ON i.id = s.item_id WHERE s.id IN ({placeholders}) "
+        "ORDER BY s.id"
+    ), params).mappings().all()
+
+    if not sales:
+        flash("Sale(s) not found.", "danger")
+        return redirect(url_for("sales_list"))
+
+    def first_nonempty(field):
+        for s in sales:
+            if s[field]:
+                return s[field]
+        return ""
+
+    subtotal = sum(s["quantity"] * s["sale_price"] for s in sales)
+    delivery_fee = sum(s["delivery_fee"] for s in sales)
+
+    return render_template(
+        "receipt_combined.html",
+        sales=sales,
+        buyer_name=first_nonempty("buyer_name"),
+        address=first_nonempty("address"),
+        phone_number=first_nonempty("phone_number"),
+        delivery_by=first_nonempty("delivery_by"),
+        sale_date=sales[0]["sale_date"],
+        subtotal=subtotal,
+        delivery_fee=delivery_fee,
+        total=subtotal + delivery_fee,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Advertising spend
 # ---------------------------------------------------------------------------

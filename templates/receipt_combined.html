@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Combined Receipt · M Shop</title>
+<link rel="icon" type="image/png" href="{{ url_for('static', filename='img/favicon.png') }}">
+<style>
+  @page { size: 80mm auto; margin: 0; }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: #ececec;
+    font-family: "Courier New", Courier, monospace;
+    color: #000;
+  }
+
+  .receipt-screen-wrap {
+    display: flex;
+    justify-content: center;
+    padding: 24px 12px;
+  }
+
+  .receipt {
+    width: 80mm;
+    max-width: 100%;
+    background: #fff;
+    padding: 4mm;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  }
+
+  .receipt-logo {
+    display: block;
+    width: 48px;
+    height: 48px;
+    margin: 0 auto 6px;
+    border-radius: 6px;
+  }
+
+  .center { text-align: center; }
+  .shop-name { font-size: 15px; font-weight: bold; margin: 0; }
+  .shop-tagline { font-size: 10px; margin: 2px 0 0; }
+
+  .divider {
+    border: none;
+    border-top: 1px dashed #000;
+    margin: 8px 0;
+  }
+
+  .row {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 11px;
+    margin: 2px 0;
+  }
+
+  .label { color: #333; }
+
+  table.items {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    margin-top: 4px;
+  }
+
+  table.items th {
+    text-align: left;
+    border-bottom: 1px dashed #000;
+    padding-bottom: 3px;
+    font-weight: bold;
+  }
+
+  table.items td {
+    padding: 3px 0;
+    vertical-align: top;
+    border-bottom: 1px dotted #ccc;
+  }
+
+  table.items tr:last-child td {
+    border-bottom: none;
+  }
+
+  table.items th:last-child,
+  table.items td:last-child {
+    text-align: right;
+  }
+
+  .item-name { font-weight: bold; }
+  .item-sub { font-size: 10px; color: #333; }
+
+  .total-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    font-weight: bold;
+    margin-top: 6px;
+  }
+
+  .thank-you {
+    text-align: center;
+    font-size: 11px;
+    margin-top: 10px;
+  }
+
+  .no-print {
+    text-align: center;
+    margin-top: 16px;
+  }
+
+  .no-print button, .no-print a {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px;
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+    margin: 4px;
+  }
+
+  .no-print .btn-print {
+    background: #d4af37;
+    color: #000;
+    font-weight: 600;
+  }
+
+  .no-print .btn-back {
+    background: #eee;
+    color: #333;
+  }
+
+  @media print {
+    body { background: #fff; }
+    .receipt-screen-wrap { padding: 0; }
+    .receipt { box-shadow: none; padding: 2mm; }
+    .no-print { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="receipt-screen-wrap">
+  <div class="receipt">
+    <div class="center">
+      <img src="{{ url_for('static', filename='img/logo-nav.png') }}" alt="M Shop logo" class="receipt-logo">
+      <p class="shop-name">M SHOP</p>
+      <p class="shop-tagline">mshop168.com</p>
+    </div>
+
+    <hr class="divider">
+
+    <div class="row"><span class="label">Receipt #</span><span>{{ sales|map(attribute='id')|join(', ') }}</span></div>
+    <div class="row"><span class="label">Date</span><span>{{ sale_date }}</span></div>
+    {% if buyer_name %}
+    <div class="row"><span class="label">Buyer-ឈ្មោះអ្នកទិញ</span><span>{{ buyer_name }}</span></div>
+    {% endif %}
+    {% if address %}
+    <div class="row"><span class="label">Address-ទីតាំងការដឹកជញ្ជូន</span><span>{{ address }}</span></div>
+    {% endif %}
+    {% if phone_number %}
+    <div class="row"><span class="label">Phone-លេខទូរស័ព្ទ</span><span>{{ phone_number }}</span></div>
+    {% endif %}
+    {% if delivery_by %}
+    <div class="row"><span class="label">Delivery-ដឹកដោយ</span><span>{{ delivery_by }}</span></div>
+    {% endif %}
+
+    <hr class="divider">
+
+    <table class="items">
+      <thead>
+        <tr><th>Item</th><th>Qty</th><th>Amount</th></tr>
+      </thead>
+      <tbody>
+        {% for sale in sales %}
+        <tr>
+          <td>
+            <div class="item-name">{{ sale.item_name }}</div>
+            {% if sale.item_size or sale.item_color %}
+            <div class="item-sub">{{ sale.item_size }}{% if sale.item_size and sale.item_color %}, {% endif %}{{ sale.item_color }}</div>
+            {% endif %}
+            <div class="item-sub">{{ CURRENCY }}{{ "%.2f"|format(sale.sale_price) }} / unit</div>
+          </td>
+          <td>{{ sale.quantity }}</td>
+          <td>{{ CURRENCY }}{{ "%.2f"|format(sale.quantity * sale.sale_price) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <hr class="divider">
+
+    <div class="row"><span class="label">Subtotal</span><span>{{ CURRENCY }}{{ "%.2f"|format(subtotal) }}</span></div>
+    <div class="row"><span class="label">Delivery Fee-ថ្លៃដឹកជញ្ជូន</span><span>{{ 'Free' if delivery_fee == 0 else CURRENCY ~ '%.2f'|format(delivery_fee) }}</span></div>
+
+    <hr class="divider">
+
+    <div class="total-row">
+      <span>TOTAL</span>
+      <span>{{ CURRENCY }}{{ "%.2f"|format(total) }}</span>
+    </div>
+
+    <p class="thank-you">Thank you for your purchase!<br>អរគុណសម្រាប់ការទិញ!</p>
+  </div>
+</div>
+
+<div class="no-print">
+  <button class="btn-print" onclick="window.print()">🖨️ Print Receipt</button>
+  <a class="btn-back" href="{{ url_for('sales_list') }}">Back to Sales</a>
+</div>
+
+</body>
+</html>
