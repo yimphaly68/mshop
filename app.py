@@ -2,7 +2,9 @@ import calendar
 import html
 import json
 import os
+import random
 import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 from datetime import date, timedelta
@@ -11,7 +13,7 @@ from functools import wraps
 import cloudinary
 import cloudinary.uploader
 from dotenv import load_dotenv
-from flask import Flask, g, render_template, request, redirect, session, url_for, flash
+from flask import Blueprint, Flask, abort, g, render_template, request, redirect, session, url_for, flash
 from sqlalchemy import text
 from werkzeug.security import check_password_hash
 from werkzeug.utils import secure_filename
@@ -67,10 +69,17 @@ app.jinja_env.globals["CURRENCY"] = CURRENCY
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 init_db()
 
+# The staff/management tool (dashboard, items, sales, ...) lives under /pe so it
+# doesn't collide with the public storefront now sitting at the bare domain.
+admin_bp = Blueprint("admin", __name__, url_prefix="/pe")
+public_bp = Blueprint("public", __name__)
+
 
 # ---------------------------------------------------------------------------
 # Auth (login page + session cookie) — set the env vars below to require a
 # login. Left unset, the app runs with no login, same as local dev always has.
+# Only the admin blueprint (/pe/*) is ever gated; the public storefront is
+# always open to visitors.
 # ---------------------------------------------------------------------------
 
 AUTH_USERS = {}  # username -> {"password_hash": ..., "is_admin": bool}
@@ -88,16 +97,16 @@ if os.environ.get("AUTH_STAFF_USERNAME") and os.environ.get("AUTH_STAFF_PASSWORD
 
 @app.before_request
 def require_login():
-    if not AUTH_USERS or request.endpoint in ("login", "static"):
+    if not AUTH_USERS or request.blueprint != "admin" or request.endpoint == "admin.login":
         return  # auth disabled, or this route doesn't need it
     user = AUTH_USERS.get(session.get("username"))
     if not user:
-        return redirect(url_for("login", next=request.path))
+        return redirect(url_for("admin.login", next=request.path))
     g.username = session["username"]
     g.is_admin = user["is_admin"]
 
 
-@app.route("/login", methods=["GET", "POST"])
+@admin_bp.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
         username = request.form.get("username", "")
@@ -109,7 +118,7 @@ def login():
             session["username"] = username
             next_url = request.form.get("next", "")
             if not next_url.startswith("/") or next_url.startswith("//"):
-                next_url = url_for("dashboard")
+                next_url = url_for("admin.dashboard")
             return redirect(next_url)
         flash("Incorrect username or password.", "danger")
     return render_template("login.html", next=request.args.get("next", ""))
@@ -120,7 +129,7 @@ def admin_required(view):
     def wrapped(*args, **kwargs):
         if AUTH_USERS and not g.get("is_admin", False):
             flash("Only an admin can do that.", "danger")
-            return redirect(request.referrer or url_for("dashboard"))
+            return redirect(request.referrer or url_for("admin.dashboard"))
         return view(*args, **kwargs)
     return wrapped
 
@@ -151,6 +160,16 @@ def photo_url(value):
 
 
 app.jinja_env.globals["photo_url"] = photo_url
+
+
+def telegram_chat_url(username, item_name=None):
+    if not username:
+        return None
+    text_msg = f"Hi, I'm interested in: {item_name}" if item_name else "Hi, I'm interested in your shop items"
+    return f"https://t.me/{username}?text=" + urllib.parse.quote(text_msg)
+
+
+app.jinja_env.globals["telegram_chat_url"] = telegram_chat_url
 
 
 def allowed_file(filename):
@@ -267,7 +286,7 @@ def _date_filtered_rows(db, table, date_column, date_from, date_to, limit=8):
 # Dashboard
 # ---------------------------------------------------------------------------
 
-@app.route("/")
+@admin_bp.route("/")
 def dashboard():
     db = get_db()
 
@@ -363,7 +382,7 @@ def dashboard():
 # Items
 # ---------------------------------------------------------------------------
 
-@app.route("/items")
+@admin_bp.route("/items")
 def items_list():
     db = get_db()
     q = request.args.get("q", "").strip()
@@ -410,7 +429,7 @@ def items_list():
     )
 
 
-@app.route("/items/new", methods=["GET", "POST"])
+@admin_bp.route("/items/new", methods=["GET", "POST"])
 def item_new():
     if request.method == "POST":
         db = get_db()
@@ -450,18 +469,18 @@ def item_new():
             f"{html.escape(name)}{' (' + html.escape(variant) + ')' if variant else ''}\n"
             f"Qty: {quantity} | Cost: {CURRENCY}{cost_price:.2f} | Sell: {CURRENCY}{sell_price:.2f}"
         )
-        return redirect(url_for("items_list"))
+        return redirect(url_for("admin.items_list"))
 
     return render_template("item_form.html", item=None, today=date.today().isoformat())
 
 
-@app.route("/items/<int:item_id>/edit", methods=["GET", "POST"])
+@admin_bp.route("/items/<int:item_id>/edit", methods=["GET", "POST"])
 def item_edit(item_id):
     db = get_db()
     item = db.execute(text("SELECT * FROM items WHERE id = :id"), {"id": item_id}).mappings().first()
     if item is None:
         flash("Item not found.", "danger")
-        return redirect(url_for("items_list"))
+        return redirect(url_for("admin.items_list"))
 
     if request.method == "POST":
         filename = item["image_filename"]
@@ -494,12 +513,12 @@ def item_edit(item_id):
         })
         db.commit()
         flash("Item updated.", "success")
-        return redirect(url_for("items_list"))
+        return redirect(url_for("admin.items_list"))
 
     return render_template("item_form.html", item=item, today=date.today().isoformat())
 
 
-@app.route("/items/<int:item_id>/delete", methods=["POST"])
+@admin_bp.route("/items/<int:item_id>/delete", methods=["POST"])
 @admin_required
 def item_delete(item_id):
     db = get_db()
@@ -510,10 +529,10 @@ def item_delete(item_id):
         db.execute(text("DELETE FROM items WHERE id = :id"), {"id": item_id})
         db.commit()
         flash("Item deleted.", "success")
-    return redirect(url_for("items_list"))
+    return redirect(url_for("admin.items_list"))
 
 
-@app.route("/items/<int:item_id>/set-rating", methods=["POST"])
+@admin_bp.route("/items/<int:item_id>/set-rating", methods=["POST"])
 def item_set_rating(item_id):
     db = get_db()
     item = db.execute(
@@ -521,20 +540,20 @@ def item_set_rating(item_id):
     ).mappings().first()
     if item is None:
         flash("Item not found.", "danger")
-        return redirect(url_for("items_list"))
+        return redirect(url_for("admin.items_list"))
 
     clicked = max(0, min(5, parse_int(request.form.get("star"))))
     new_rating = 0 if clicked == item["star_rating"] else clicked
     db.execute(text("UPDATE items SET star_rating = :rating WHERE id = :id"), {"rating": new_rating, "id": item_id})
     db.commit()
-    return redirect(request.referrer or url_for("items_list"))
+    return redirect(request.referrer or url_for("admin.items_list"))
 
 
 # ---------------------------------------------------------------------------
 # Sales
 # ---------------------------------------------------------------------------
 
-@app.route("/sales")
+@admin_bp.route("/sales")
 def sales_list():
     db = get_db()
     sales = db.execute(text(
@@ -549,7 +568,7 @@ def sales_list():
     return render_template("sales.html", sales=sales, items=items, today=date.today().isoformat())
 
 
-@app.route("/sales/new", methods=["POST"])
+@admin_bp.route("/sales/new", methods=["POST"])
 def sale_new():
     db = get_db()
     item_id = parse_int(request.form.get("item_id"))
@@ -558,13 +577,13 @@ def sale_new():
 
     if not item:
         flash("Please choose a valid item.", "danger")
-        return redirect(url_for("sales_list"))
+        return redirect(url_for("admin.sales_list"))
     if quantity <= 0:
         flash("Quantity sold must be greater than zero.", "danger")
-        return redirect(url_for("sales_list"))
+        return redirect(url_for("admin.sales_list"))
     if quantity > item["quantity"]:
         flash(f"Only {item['quantity']} in stock for {item['name']} — cannot sell {quantity}.", "danger")
-        return redirect(url_for("sales_list"))
+        return redirect(url_for("admin.sales_list"))
 
     sale_price = parse_float(request.form.get("sale_price"), item["sell_price"])
     sale_date = request.form.get("sale_date") or date.today().isoformat()
@@ -605,10 +624,10 @@ def sale_new():
         f"Total: {CURRENCY}{total:.2f}"
         + (f"\nBuyer: {html.escape(buyer_name)}" if buyer_name else "")
     )
-    return redirect(url_for("sales_list"))
+    return redirect(url_for("admin.sales_list"))
 
 
-@app.route("/sales/<int:sale_id>/edit-delivery", methods=["POST"])
+@admin_bp.route("/sales/<int:sale_id>/edit-delivery", methods=["POST"])
 def sale_edit_delivery(sale_id):
     db = get_db()
     sale = db.execute(
@@ -616,7 +635,7 @@ def sale_edit_delivery(sale_id):
     ).mappings().first()
     if not sale:
         flash("Sale not found.", "danger")
-        return redirect(url_for("sales_list"))
+        return redirect(url_for("admin.sales_list"))
 
     sale_price = parse_float(request.form.get("sale_price"), sale["sale_price"])
     if sale_price <= 0:
@@ -642,10 +661,10 @@ def sale_edit_delivery(sale_id):
     })
     db.commit()
     flash("Buyer and delivery info updated.", "success")
-    return redirect(url_for("sales_list"))
+    return redirect(url_for("admin.sales_list"))
 
 
-@app.route("/sales/<int:sale_id>/delete", methods=["POST"])
+@admin_bp.route("/sales/<int:sale_id>/delete", methods=["POST"])
 @admin_required
 def sale_delete(sale_id):
     db = get_db()
@@ -660,16 +679,16 @@ def sale_delete(sale_id):
         db.execute(text("DELETE FROM sales WHERE id = :id"), {"id": sale_id})
         db.commit()
         flash("Sale removed and stock restored.", "success")
-    return redirect(url_for("sales_list"))
+    return redirect(url_for("admin.sales_list"))
 
 
-@app.route("/sales/<int:sale_id>/refund", methods=["POST"])
+@admin_bp.route("/sales/<int:sale_id>/refund", methods=["POST"])
 def sale_refund(sale_id):
     db = get_db()
     sale = db.execute(text("SELECT * FROM sales WHERE id = :id"), {"id": sale_id}).mappings().first()
     if not sale:
         flash("Sale not found.", "danger")
-        return redirect(url_for("sales_list"))
+        return redirect(url_for("admin.sales_list"))
 
     remaining = sale["quantity"] - sale["refunded_quantity"]
     refund_qty = parse_int(request.form.get("refund_quantity"))
@@ -690,16 +709,16 @@ def sale_refund(sale_id):
         db.commit()
         flash(f"Refunded {refund_qty} unit(s) — {CURRENCY}{refund_qty * sale['sale_price']:.2f}, stock restored.", "success")
 
-    return redirect(url_for("sales_list"))
+    return redirect(url_for("admin.sales_list"))
 
 
-@app.route("/sales/<int:sale_id>/exchange", methods=["POST"])
+@admin_bp.route("/sales/<int:sale_id>/exchange", methods=["POST"])
 def sale_exchange(sale_id):
     db = get_db()
     sale = db.execute(text("SELECT * FROM sales WHERE id = :id"), {"id": sale_id}).mappings().first()
     if not sale:
         flash("Sale not found.", "danger")
-        return redirect(url_for("sales_list"))
+        return redirect(url_for("admin.sales_list"))
 
     remaining = sale["quantity"] - sale["refunded_quantity"]
     exchange_qty = parse_int(request.form.get("exchange_quantity"))
@@ -708,16 +727,16 @@ def sale_exchange(sale_id):
 
     if exchange_qty <= 0:
         flash("Exchange quantity must be greater than zero.", "danger")
-        return redirect(url_for("sales_list"))
+        return redirect(url_for("admin.sales_list"))
     if exchange_qty > remaining:
         flash(f"Only {remaining} unit(s) from this sale can still be exchanged.", "danger")
-        return redirect(url_for("sales_list"))
+        return redirect(url_for("admin.sales_list"))
     if not new_item:
         flash("Please choose a valid item to exchange for.", "danger")
-        return redirect(url_for("sales_list"))
+        return redirect(url_for("admin.sales_list"))
     if new_item["quantity"] < exchange_qty:
         flash(f"Only {new_item['quantity']} in stock for {new_item['name']} — cannot exchange {exchange_qty}.", "danger")
-        return redirect(url_for("sales_list"))
+        return redirect(url_for("admin.sales_list"))
 
     new_price = parse_float(request.form.get("new_sale_price"), new_item["sell_price"])
     new_date = request.form.get("exchange_date") or date.today().isoformat()
@@ -763,10 +782,10 @@ def sale_exchange(sale_id):
     else:
         diff_note = "no price difference"
     flash(f"Exchanged {exchange_qty} unit(s) for {new_item['name']} ({diff_note}).", "success")
-    return redirect(url_for("sales_list"))
+    return redirect(url_for("admin.sales_list"))
 
 
-@app.route("/sales/<int:sale_id>/receipt")
+@admin_bp.route("/sales/<int:sale_id>/receipt")
 def sale_receipt(sale_id):
     db = get_db()
     sale = db.execute(text(
@@ -775,18 +794,18 @@ def sale_receipt(sale_id):
     ), {"id": sale_id}).mappings().first()
     if not sale:
         flash("Sale not found.", "danger")
-        return redirect(url_for("sales_list"))
+        return redirect(url_for("admin.sales_list"))
     return render_template("receipt.html", sale=sale)
 
 
-@app.route("/sales/receipt-combined")
+@admin_bp.route("/sales/receipt-combined")
 def sale_receipt_combined():
     db = get_db()
     sale_ids = [parse_int(x) for x in request.args.get("ids", "").split(",") if x.strip().isdigit()]
     sale_ids = [i for i in sale_ids if i > 0]
     if not sale_ids:
         flash("No sales selected to print.", "danger")
-        return redirect(url_for("sales_list"))
+        return redirect(url_for("admin.sales_list"))
 
     placeholders = ", ".join(f":id{i}" for i in range(len(sale_ids)))
     params = {f"id{i}": sid for i, sid in enumerate(sale_ids)}
@@ -798,7 +817,7 @@ def sale_receipt_combined():
 
     if not sales:
         flash("Sale(s) not found.", "danger")
-        return redirect(url_for("sales_list"))
+        return redirect(url_for("admin.sales_list"))
 
     def first_nonempty(field):
         for s in sales:
@@ -829,7 +848,7 @@ def sale_receipt_combined():
 # Advertising spend
 # ---------------------------------------------------------------------------
 
-@app.route("/advertising")
+@admin_bp.route("/advertising")
 def advertising_list():
     db = get_db()
     expenses = db.execute(text("SELECT * FROM advertising ORDER BY expense_date DESC, id DESC")).mappings().all()
@@ -837,13 +856,13 @@ def advertising_list():
     return render_template("advertising.html", expenses=expenses, total=total, today=date.today().isoformat())
 
 
-@app.route("/advertising/new", methods=["POST"])
+@admin_bp.route("/advertising/new", methods=["POST"])
 def advertising_new():
     db = get_db()
     amount = parse_float(request.form.get("amount"))
     if amount <= 0:
         flash("Amount must be greater than zero.", "danger")
-        return redirect(url_for("advertising_list"))
+        return redirect(url_for("admin.advertising_list"))
     platform = request.form.get("platform", "").strip()
     db.execute(text(
         "INSERT INTO advertising (expense_date, platform, description, amount) "
@@ -862,24 +881,24 @@ def advertising_new():
         f"📢 <b>Advertising Expense</b>\n"
         f"{html.escape(platform) if platform else 'Advertising'}: {CURRENCY}{amount:.2f}"
     )
-    return redirect(url_for("advertising_list"))
+    return redirect(url_for("admin.advertising_list"))
 
 
-@app.route("/advertising/<int:expense_id>/delete", methods=["POST"])
+@admin_bp.route("/advertising/<int:expense_id>/delete", methods=["POST"])
 @admin_required
 def advertising_delete(expense_id):
     db = get_db()
     db.execute(text("DELETE FROM advertising WHERE id = :id"), {"id": expense_id})
     db.commit()
     flash("Expense deleted.", "success")
-    return redirect(url_for("advertising_list"))
+    return redirect(url_for("admin.advertising_list"))
 
 
 # ---------------------------------------------------------------------------
 # Other expenses (rent, utilities, wages, etc.)
 # ---------------------------------------------------------------------------
 
-@app.route("/expenses")
+@admin_bp.route("/expenses")
 def expenses_list():
     db = get_db()
     expenses = db.execute(text("SELECT * FROM expenses ORDER BY expense_date DESC, id DESC")).mappings().all()
@@ -887,13 +906,13 @@ def expenses_list():
     return render_template("expenses.html", expenses=expenses, total=total, today=date.today().isoformat())
 
 
-@app.route("/expenses/new", methods=["POST"])
+@admin_bp.route("/expenses/new", methods=["POST"])
 def expense_new():
     db = get_db()
     amount = parse_float(request.form.get("amount"))
     if amount <= 0:
         flash("Amount must be greater than zero.", "danger")
-        return redirect(url_for("expenses_list"))
+        return redirect(url_for("admin.expenses_list"))
     category = request.form.get("category", "").strip()
     db.execute(text(
         "INSERT INTO expenses (expense_date, category, description, amount) "
@@ -912,24 +931,24 @@ def expense_new():
         f"💸 <b>Expense Logged</b>\n"
         f"{html.escape(category) if category else 'Expense'}: {CURRENCY}{amount:.2f}"
     )
-    return redirect(url_for("expenses_list"))
+    return redirect(url_for("admin.expenses_list"))
 
 
-@app.route("/expenses/<int:expense_id>/delete", methods=["POST"])
+@admin_bp.route("/expenses/<int:expense_id>/delete", methods=["POST"])
 @admin_required
 def expense_delete(expense_id):
     db = get_db()
     db.execute(text("DELETE FROM expenses WHERE id = :id"), {"id": expense_id})
     db.commit()
     flash("Expense deleted.", "success")
-    return redirect(url_for("expenses_list"))
+    return redirect(url_for("admin.expenses_list"))
 
 
 # ---------------------------------------------------------------------------
 # Other income (non-sales revenue)
 # ---------------------------------------------------------------------------
 
-@app.route("/income")
+@admin_bp.route("/income")
 def income_list():
     db = get_db()
     income = db.execute(text("SELECT * FROM other_income ORDER BY income_date DESC, id DESC")).mappings().all()
@@ -937,13 +956,13 @@ def income_list():
     return render_template("income.html", income=income, total=total, today=date.today().isoformat())
 
 
-@app.route("/income/new", methods=["POST"])
+@admin_bp.route("/income/new", methods=["POST"])
 def income_new():
     db = get_db()
     amount = parse_float(request.form.get("amount"))
     if amount <= 0:
         flash("Amount must be greater than zero.", "danger")
-        return redirect(url_for("income_list"))
+        return redirect(url_for("admin.income_list"))
     db.execute(text(
         "INSERT INTO other_income (income_date, source, description, amount) "
         "VALUES (:income_date, :source, :description, :amount)"
@@ -955,24 +974,24 @@ def income_new():
     })
     db.commit()
     flash("Income logged.", "success")
-    return redirect(url_for("income_list"))
+    return redirect(url_for("admin.income_list"))
 
 
-@app.route("/income/<int:income_id>/delete", methods=["POST"])
+@admin_bp.route("/income/<int:income_id>/delete", methods=["POST"])
 @admin_required
 def income_delete(income_id):
     db = get_db()
     db.execute(text("DELETE FROM other_income WHERE id = :id"), {"id": income_id})
     db.commit()
     flash("Income entry deleted.", "success")
-    return redirect(url_for("income_list"))
+    return redirect(url_for("admin.income_list"))
 
 
 # ---------------------------------------------------------------------------
 # Reports (profit & loss)
 # ---------------------------------------------------------------------------
 
-@app.route("/reports")
+@admin_bp.route("/reports")
 def reports():
     db = get_db()
     date_from = request.args.get("from", "")
@@ -1020,7 +1039,7 @@ def reports():
     )
 
 
-@app.route("/settings", methods=["GET", "POST"])
+@admin_bp.route("/settings", methods=["GET", "POST"])
 @admin_required
 def settings():
     db = get_db()
@@ -1032,19 +1051,23 @@ def settings():
             set_setting(db, "telegram_bot_token", new_token)
         if new_chat_id:
             set_setting(db, "telegram_chat_id", new_chat_id)
+        if "public_telegram_username" in request.form:
+            public_telegram_username = request.form.get("public_telegram_username", "").strip().lstrip("@")
+            set_setting(db, "public_telegram_username", public_telegram_username)
         db.commit()
         flash("Settings saved.", "success")
-        return redirect(url_for("settings"))
+        return redirect(url_for("admin.settings"))
 
     token, chat_id = get_telegram_config(db)
     return render_template(
         "settings.html",
         telegram_token_set=bool(token),
         telegram_chat_id=chat_id or "",
+        public_telegram_username=get_setting(db, "public_telegram_username") or "",
     )
 
 
-@app.route("/settings/test-telegram", methods=["POST"])
+@admin_bp.route("/settings/test-telegram", methods=["POST"])
 @admin_required
 def settings_test_telegram():
     db = get_db()
@@ -1054,13 +1077,82 @@ def settings_test_telegram():
     else:
         notify_telegram(db, "✅ <b>Test notification</b>\nIf you can see this in your Telegram group, it's working!")
         flash("Test notification sent — check your Telegram group.", "success")
-    return redirect(url_for("settings"))
+    return redirect(url_for("admin.settings"))
 
 
-@app.route("/logout")
+@admin_bp.route("/logout")
 def logout():
     session.clear()
-    return redirect(url_for("login"))
+    return redirect(url_for("admin.login"))
+
+
+# ---------------------------------------------------------------------------
+# Public storefront — open to every visitor, no login. Read-only: browse the
+# catalog and reach the shop on Telegram. Never exposes cost_price.
+# ---------------------------------------------------------------------------
+
+PUBLIC_FEED_BATCH_SIZE = 9
+
+@public_bp.route("/")
+def index():
+    db = get_db()
+    items = list(db.execute(text("SELECT * FROM items ORDER BY created_at DESC")).mappings().all())
+    random.shuffle(items)
+    batches = [
+        items[i:i + PUBLIC_FEED_BATCH_SIZE]
+        for i in range(0, len(items), PUBLIC_FEED_BATCH_SIZE)
+    ]
+    public_telegram_username = get_setting(db, "public_telegram_username")
+    return render_template(
+        "public_feed.html",
+        batches=batches,
+        public_telegram_username=public_telegram_username,
+    )
+
+
+@public_bp.route("/item/<int:item_id>")
+def item_detail(item_id):
+    db = get_db()
+    item = db.execute(text("SELECT * FROM items WHERE id = :id"), {"id": item_id}).mappings().first()
+    if not item:
+        abort(404)
+
+    if item["category"]:
+        similar = db.execute(text(
+            "SELECT * FROM items WHERE category = :category AND id != :id"
+        ), {"category": item["category"], "id": item_id}).mappings().all()
+    else:
+        similar = db.execute(text(
+            "SELECT * FROM items WHERE name = :name AND id != :id"
+        ), {"name": item["name"], "id": item_id}).mappings().all()
+    similar = list(similar)
+    random.shuffle(similar)
+    similar = similar[:12]
+
+    public_telegram_username = get_setting(db, "public_telegram_username")
+    return render_template(
+        "public_item.html",
+        item=item,
+        similar_items=similar,
+        public_telegram_username=public_telegram_username,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Legacy URL redirects — the admin tool used to live at the bare paths below;
+# send old bookmarks/links to their new /pe/... home instead of 404ing.
+# ---------------------------------------------------------------------------
+
+for _legacy_path in ("items", "sales", "advertising", "expenses", "income", "reports", "settings", "login"):
+    def _make_legacy_redirect(target=_legacy_path):
+        def _view():
+            return redirect(f"/pe/{target}", code=301)
+        return _view
+    app.add_url_rule(f"/{_legacy_path}", endpoint=f"legacy_{_legacy_path}", view_func=_make_legacy_redirect())
+
+
+app.register_blueprint(admin_bp)
+app.register_blueprint(public_bp)
 
 
 if __name__ == "__main__":

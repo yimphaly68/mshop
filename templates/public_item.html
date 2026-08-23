@@ -1,0 +1,46 @@
+{% extends "public_base.html" %}
+{% block title %}{{ item.name }} — M Shop{% endblock %}
+{% block content %}
+
+<div class="item-detail-wrap">
+  <a href="{{ url_for('public.index') }}" class="item-detail-back"><i class="bi bi-arrow-left me-1"></i>Back to shop</a>
+
+  <div class="item-detail-card">
+    <div class="item-detail-photo-wrap">
+      {% if item.image_filename %}
+      <img src="{{ photo_url(item.image_filename) }}" class="item-detail-photo" alt="{{ item.name }}">
+      {% else %}
+      <div class="item-detail-photo item-detail-photo-placeholder"><i class="bi bi-image"></i></div>
+      {% endif %}
+      {% if item.quantity <= 0 %}
+      <span class="badge bg-danger feed-card-badge">Out of Stock</span>
+      {% endif %}
+    </div>
+    <div class="item-detail-body">
+      <h3 class="mb-1">{{ item.name }}</h3>
+      <div class="text-muted mb-3">
+        {% if item.category %}{{ item.category }}{% endif %}
+        {% if item.size %} · Size {{ item.size }}{% endif %}
+        {% if item.color %} · {{ item.color }}{% endif %}
+      </div>
+      <div class="item-detail-price mb-3">{{ CURRENCY }}{{ "%.2f"|format(item.sell_price) }}</div>
+      {% set chat_url = telegram_chat_url(public_telegram_username, item.name) %}
+      {% if chat_url %}
+      <a href="{{ chat_url }}" target="_blank" rel="noopener" class="btn btn-telegram btn-lg">
+        <i class="bi bi-telegram me-1"></i>Chat about this item
+      </a>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if similar_items %}
+  <h5 class="mt-4 mb-3">Similar items</h5>
+  <div class="feed-batch">
+    {% for item in similar_items %}
+      {% include "_item_card.html" %}
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}

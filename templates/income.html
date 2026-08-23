@@ -7,7 +7,7 @@
 <div class="card mb-4">
   <div class="card-header fw-semibold">Log Income</div>
   <div class="card-body">
-    <form method="post" action="{{ url_for('income_new') }}" class="row g-2 align-items-end">
+    <form method="post" action="{{ url_for('admin.income_new') }}" class="row g-2 align-items-end">
       <div class="col-md-3">
         <label class="form-label small">Date</label>
         <input type="date" name="income_date" value="{{ today }}" class="form-control">
@@ -57,7 +57,7 @@
           <td>{{ CURRENCY }}{{ "%.2f"|format(i.amount) }}</td>
           <td class="text-end">
             {% if is_admin() %}
-            <form method="post" action="{{ url_for('income_delete', income_id=i.id) }}" onsubmit="return confirm('Delete this income entry?');">
+            <form method="post" action="{{ url_for('admin.income_delete', income_id=i.id) }}" onsubmit="return confirm('Delete this income entry?');">
               <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
             </form>
             {% endif %}

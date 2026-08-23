@@ -1,0 +1,55 @@
+{% extends "public_base.html" %}
+{% block title %}M Shop — Shop Our Items{% endblock %}
+{% block content %}
+
+<div class="feed-wrap">
+  {% for batch in batches %}
+  <div class="feed-batch"{{ ' hidden' if not loop.first }}>
+    {% for item in batch %}
+      {% include "_item_card.html" %}
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="text-center text-muted py-5">
+    <i class="bi bi-shop fs-1 d-block mb-2"></i>
+    No items yet — check back soon!
+  </div>
+  {% endfor %}
+
+  <div id="feedSentinel"></div>
+  <p id="feedEndMsg" class="text-center text-muted small py-4" hidden>
+    <i class="bi bi-check2-circle me-1"></i>You've seen every item — check back later for more.
+  </p>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var batches = Array.from(document.querySelectorAll('.feed-batch'));
+  var sentinel = document.getElementById('feedSentinel');
+  var endMsg = document.getElementById('feedEndMsg');
+  var nextIndex = batches.findIndex(function (b) { return b.hasAttribute('hidden'); });
+
+  if (nextIndex === -1) {
+    if (endMsg) endMsg.hidden = false;
+    return;
+  }
+
+  var observer = new IntersectionObserver(function (entries) {
+    entries.forEach(function (entry) {
+      if (!entry.isIntersecting || nextIndex >= batches.length) return;
+      batches[nextIndex].removeAttribute('hidden');
+      nextIndex++;
+      if (nextIndex >= batches.length) {
+        observer.disconnect();
+        if (endMsg) endMsg.hidden = false;
+      }
+    });
+  }, { rootMargin: '600px' });
+
+  observer.observe(sentinel);
+})();
+</script>
+{% endblock %}

@@ -7,7 +7,7 @@
 <div class="card mb-4">
   <div class="card-header fw-semibold">Log an Expense</div>
   <div class="card-body">
-    <form method="post" action="{{ url_for('advertising_new') }}" class="row g-2 align-items-end">
+    <form method="post" action="{{ url_for('admin.advertising_new') }}" class="row g-2 align-items-end">
       <div class="col-md-3">
         <label class="form-label small">Date</label>
         <input type="date" name="expense_date" value="{{ today }}" class="form-control">
@@ -50,7 +50,7 @@
           <td>{{ CURRENCY }}{{ "%.2f"|format(e.amount) }}</td>
           <td class="text-end">
             {% if is_admin() %}
-            <form method="post" action="{{ url_for('advertising_delete', expense_id=e.id) }}" onsubmit="return confirm('Delete this expense?');">
+            <form method="post" action="{{ url_for('admin.advertising_delete', expense_id=e.id) }}" onsubmit="return confirm('Delete this expense?');">
               <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
             </form>
             {% endif %}

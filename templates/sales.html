@@ -7,7 +7,7 @@
 <div class="card mb-4">
   <div class="card-header fw-semibold">Record a Sale</div>
   <div class="card-body">
-    <form method="post" action="{{ url_for('sale_new') }}" class="row g-2 align-items-end">
+    <form method="post" action="{{ url_for('admin.sale_new') }}" class="row g-2 align-items-end">
       <div class="col-md-3">
         <label class="form-label small">Item-ជ្រើសរើស ខោអាវ</label>
         <select name="item_id" class="form-select" required onchange="fillPrice(this)">
@@ -135,7 +135,7 @@
                 data-discount="{{ s.discount }}">
                 <i class="bi bi-pencil-square"></i>
               </button>
-              <a href="{{ url_for('sale_receipt', sale_id=s.id) }}" target="_blank" class="btn btn-sm btn-outline-dark" title="Print receipt">
+              <a href="{{ url_for('admin.sale_receipt', sale_id=s.id) }}" target="_blank" class="btn btn-sm btn-outline-dark" title="Print receipt">
                 <i class="bi bi-printer"></i>
               </a>
               {% if remaining > 0 %}
@@ -153,7 +153,7 @@
               </button>
               {% endif %}
               {% if is_admin() %}
-              <form method="post" action="{{ url_for('sale_delete', sale_id=s.id) }}" onsubmit="return confirm('Delete this sale and restore stock?');">
+              <form method="post" action="{{ url_for('admin.sale_delete', sale_id=s.id) }}" onsubmit="return confirm('Delete this sale and restore stock?');">
                 <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="bi bi-trash"></i></button>
               </form>
               {% endif %}

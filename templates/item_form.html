@@ -4,7 +4,7 @@
 
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h3 class="mb-0">{{ 'Edit Item' if item else 'Add Item' }}</h3>
-  <a href="{{ url_for('items_list') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Back to Items</a>
+  <a href="{{ url_for('admin.items_list') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Back to Items</a>
 </div>
 
 <div class="card">
@@ -96,7 +96,7 @@
 
       <div class="mt-4">
         <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>{{ 'Save Changes' if item else 'Add Item' }}</button>
-        <a href="{{ url_for('items_list') }}" class="btn btn-link">Cancel</a>
+        <a href="{{ url_for('admin.items_list') }}" class="btn btn-link">Cancel</a>
       </div>
     </form>
   </div>
