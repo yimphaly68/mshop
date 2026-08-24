@@ -3,6 +3,11 @@
 {% block content %}
 
 <div class="feed-wrap">
+  {% if has_discounts %}
+  <div class="sale-banner">
+    <i class="bi bi-fire me-1"></i>On Sale-បញ្ចុះតម្លៃ
+  </div>
+  {% endif %}
   {% for batch in batches %}
   <div class="feed-batch"{{ ' hidden' if not loop.first }}>
     {% for item in batch %}

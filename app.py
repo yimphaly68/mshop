@@ -1200,7 +1200,13 @@ PUBLIC_FEED_BATCH_SIZE = 9
 def index():
     db = get_db()
     items = list(db.execute(text("SELECT * FROM items ORDER BY created_at DESC")).mappings().all())
-    random.shuffle(items)
+    # Discounted items make the first impression; everything else follows.
+    # Each group is shuffled on its own so the promo items stay on top but still vary.
+    discounted = [i for i in items if i["discount_price"]]
+    others = [i for i in items if not i["discount_price"]]
+    random.shuffle(discounted)
+    random.shuffle(others)
+    items = discounted + others
     batches = [
         items[i:i + PUBLIC_FEED_BATCH_SIZE]
         for i in range(0, len(items), PUBLIC_FEED_BATCH_SIZE)
@@ -1209,6 +1215,7 @@ def index():
     return render_template(
         "public_feed.html",
         batches=batches,
+        has_discounts=bool(discounted),
         public_telegram_username=public_telegram_username,
     )
 
