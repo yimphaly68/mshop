@@ -302,7 +302,7 @@ document.getElementById('refundModal').addEventListener('show.bs.modal', functio
   const qtyInput = document.getElementById('refundQuantity');
   qtyInput.max = remaining;
   qtyInput.value = remaining;
-  document.getElementById('refundForm').action = '/sales/' + saleId + '/refund';
+  document.getElementById('refundForm').action = '/pe/sales/' + saleId + '/refund';
 });
 
 document.getElementById('exchangeModal').addEventListener('show.bs.modal', function (event) {
@@ -313,7 +313,7 @@ document.getElementById('exchangeModal').addEventListener('show.bs.modal', funct
   const qtyInput = document.getElementById('exchangeQuantity');
   qtyInput.max = remaining;
   qtyInput.value = remaining;
-  document.getElementById('exchangeForm').action = '/sales/' + saleId + '/exchange';
+  document.getElementById('exchangeForm').action = '/pe/sales/' + saleId + '/exchange';
 });
 
 document.getElementById('editDeliveryModal').addEventListener('show.bs.modal', function (event) {
@@ -327,7 +327,7 @@ document.getElementById('editDeliveryModal').addEventListener('show.bs.modal', f
   document.getElementById('editPhoneNumber').value = btn.getAttribute('data-phone-number');
   document.getElementById('editDeliveryBy').value = btn.getAttribute('data-delivery-by');
   document.getElementById('editDeliveryFee').value = btn.getAttribute('data-delivery-fee');
-  document.getElementById('editDeliveryForm').action = '/sales/' + saleId + '/edit-delivery';
+  document.getElementById('editDeliveryForm').action = '/pe/sales/' + saleId + '/edit-delivery';
 });
 
 const printSelectedBtn = document.getElementById('printSelectedBtn');
@@ -346,7 +346,7 @@ document.querySelectorAll('.sale-checkbox').forEach(function (cb) {
 printSelectedBtn.addEventListener('click', function () {
   const ids = Array.from(document.querySelectorAll('.sale-checkbox:checked')).map(cb => cb.value);
   if (ids.length < 2) return;
-  window.open('/sales/receipt-combined?ids=' + ids.join(','), '_blank');
+  window.open('/pe/sales/receipt-combined?ids=' + ids.join(','), '_blank');
 });
 </script>
 
