@@ -19,7 +19,7 @@ from flask import (
 )
 from sqlalchemy import text
 from werkzeug.middleware.proxy_fix import ProxyFix
-from werkzeug.security import check_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
 from db import (
@@ -114,7 +114,7 @@ public_bp = Blueprint("public", __name__)
 # always open to visitors.
 # ---------------------------------------------------------------------------
 
-AUTH_USERS = {}  # username -> {"password_hash": ..., "is_admin": bool}
+AUTH_USERS = {}  # username -> {"password_hash": ..., "is_admin": bool} — built-in, from env vars
 if os.environ.get("AUTH_ADMIN_USERNAME") and os.environ.get("AUTH_ADMIN_PASSWORD_HASH"):
     AUTH_USERS[os.environ["AUTH_ADMIN_USERNAME"]] = {
         "password_hash": os.environ["AUTH_ADMIN_PASSWORD_HASH"],
@@ -127,14 +127,28 @@ if os.environ.get("AUTH_STAFF_USERNAME") and os.environ.get("AUTH_STAFF_PASSWORD
     }
 
 
+def get_db_user(db, username):
+    """A staff/admin account created from Settings (in the `users` table), on top
+    of the built-in AUTH_USERS above."""
+    if not username:
+        return None
+    row = db.execute(
+        text("SELECT password_hash, is_admin FROM users WHERE username = :u"), {"u": username}
+    ).mappings().first()
+    if not row:
+        return None
+    return {"password_hash": row["password_hash"], "is_admin": bool(row["is_admin"])}
+
+
 @app.before_request
 def require_login():
     if not AUTH_USERS or request.blueprint != "admin" or request.endpoint == "admin.login":
         return  # auth disabled, or this route doesn't need it
-    user = AUTH_USERS.get(session.get("username"))
+    username = session.get("username")
+    user = AUTH_USERS.get(username) or get_db_user(get_db(), username)
     if not user:
         return redirect(url_for("admin.login", next=request.path))
-    g.username = session["username"]
+    g.username = username
     g.is_admin = user["is_admin"]
 
 
@@ -143,7 +157,7 @@ def login():
     if request.method == "POST":
         username = request.form.get("username", "")
         password = request.form.get("password", "")
-        user = AUTH_USERS.get(username)
+        user = AUTH_USERS.get(username) or get_db_user(get_db(), username)
         if user and check_password_hash(user["password_hash"], password):
             session.clear()
             session.permanent = True
@@ -1143,6 +1157,9 @@ def settings():
 
     token, chat_id = get_telegram_config(db)
     chat_click_token, chat_click_chat_id = get_chat_click_telegram_config(db)
+    db_users = db.execute(
+        text("SELECT id, username, is_admin, created_at FROM users ORDER BY created_at")
+    ).mappings().all()
     return render_template(
         "settings.html",
         telegram_token_set=bool(token),
@@ -1150,7 +1167,50 @@ def settings():
         chat_click_token_set=bool(chat_click_token),
         chat_click_chat_id=chat_click_chat_id or "",
         public_telegram_username=get_setting(db, "public_telegram_username") or "",
+        built_in_users=[(u, info["is_admin"]) for u, info in AUTH_USERS.items()],
+        db_users=db_users,
     )
+
+
+@admin_bp.route("/settings/users/new", methods=["POST"])
+@admin_required
+def user_new():
+    db = get_db()
+    username = request.form.get("username", "").strip()
+    password = request.form.get("password", "")
+    role = request.form.get("role", "staff")
+
+    if not username or not password:
+        flash("Username and password are both required.", "danger")
+        return redirect(url_for("admin.settings"))
+    if username in AUTH_USERS or get_db_user(db, username):
+        flash(f"An account named \"{username}\" already exists.", "danger")
+        return redirect(url_for("admin.settings"))
+
+    db.execute(text(
+        "INSERT INTO users (username, password_hash, is_admin) VALUES (:username, :password_hash, :is_admin)"
+    ), {
+        "username": username,
+        "password_hash": generate_password_hash(password),
+        "is_admin": role == "admin",
+    })
+    db.commit()
+    flash(f"Account \"{username}\" created.", "success")
+    return redirect(url_for("admin.settings"))
+
+
+@admin_bp.route("/settings/users/<int:user_id>/delete", methods=["POST"])
+@admin_required
+def user_delete(user_id):
+    db = get_db()
+    user = db.execute(text("SELECT username FROM users WHERE id = :id"), {"id": user_id}).mappings().first()
+    if user and user["username"] == g.get("username"):
+        flash("You can't delete the account you're currently logged in as.", "danger")
+        return redirect(url_for("admin.settings"))
+    db.execute(text("DELETE FROM users WHERE id = :id"), {"id": user_id})
+    db.commit()
+    flash("Account removed.", "success")
+    return redirect(url_for("admin.settings"))
 
 
 @admin_bp.route("/settings/test-telegram", methods=["POST"])

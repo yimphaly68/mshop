@@ -5,6 +5,71 @@
 <h3 class="mb-3">Settings</h3>
 
 <div class="card mb-4">
+  <div class="card-header fw-semibold"><i class="bi bi-people me-1"></i>Staff &amp; Admin Accounts</div>
+  <div class="card-body">
+    <p class="text-muted small">
+      Create a login for each staff member and set their role. Admins can delete
+      sales/items/expenses and manage these accounts; Staff can do everything else.
+    </p>
+
+    <table class="table table-sm align-middle mb-3">
+      <thead>
+        <tr><th>Username</th><th>Role</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for username, is_admin_user in built_in_users %}
+        <tr>
+          <td>{{ username }}</td>
+          <td>
+            <span class="badge {{ 'bg-dark' if is_admin_user else 'bg-secondary' }}">{{ 'Admin' if is_admin_user else 'Staff' }}</span>
+            <span class="text-muted small">(built-in)</span>
+          </td>
+          <td></td>
+        </tr>
+        {% endfor %}
+        {% for u in db_users %}
+        <tr>
+          <td>{{ u.username }}</td>
+          <td><span class="badge {{ 'bg-dark' if u.is_admin else 'bg-secondary' }}">{{ 'Admin' if u.is_admin else 'Staff' }}</span></td>
+          <td class="text-end">
+            <form method="post" action="{{ url_for('admin.user_delete', user_id=u.id) }}" onsubmit="return confirm('Remove account {{ u.username }}? This cannot be undone.');">
+              <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+        {% if not built_in_users and not db_users %}
+        <tr><td colspan="3" class="text-muted">No accounts yet — login is open to everyone.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+
+    <hr>
+
+    <form method="post" action="{{ url_for('admin.user_new') }}" class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label small">Username</label>
+        <input type="text" name="username" class="form-control" required autocomplete="off">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label small">Password</label>
+        <input type="password" name="password" class="form-control" required autocomplete="new-password">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Role</label>
+        <select name="role" class="form-select">
+          <option value="staff">Staff</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+      <div class="col-md-2 d-grid align-items-end">
+        <button class="btn btn-primary" type="submit"><i class="bi bi-person-plus me-1"></i>Add</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card mb-4">
   <div class="card-header fw-semibold"><i class="bi bi-telegram me-1"></i>Telegram Notifications</div>
   <div class="card-body">
     <p class="text-muted small">

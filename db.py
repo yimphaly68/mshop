@@ -1,6 +1,7 @@
 import os
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     Column,
     DateTime,
@@ -119,6 +120,16 @@ visitor_pings = Table(
     metadata,
     Column("session_id", Text, primary_key=True),
     Column("last_seen", DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")),
+)
+
+users = Table(
+    "users",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("username", Text, nullable=False, unique=True),
+    Column("password_hash", Text, nullable=False),
+    Column("is_admin", Boolean, nullable=False, server_default=text("0")),
+    Column("created_at", DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")),
 )
 
 
