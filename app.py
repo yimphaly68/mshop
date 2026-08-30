@@ -350,6 +350,52 @@ def _date_filtered_rows(db, table, date_column, date_from, date_to, limit=8):
     return db.execute(text(sql), params).mappings().all()
 
 
+def send_pnl_summary():
+    """Send today's Profit & Loss summary to the business-ops Telegram bot/group
+    (the one configured under "Telegram Notifications" in Settings). Invoked by a
+    system cron job on the host four times a day — not by any HTTP route, so it
+    runs outside any Flask request/app context and opens its own DB connection."""
+    with engine.connect() as db:
+        period_start, period_end = _period_range("today")
+        date_from = period_start.isoformat()
+        date_to = period_end.isoformat()
+
+        sales_summary = db.execute(text(
+            "SELECT COALESCE(SUM(s.quantity - s.refunded_quantity),0) AS units_sold, "
+            "COALESCE(SUM((s.quantity - s.refunded_quantity) * s.sale_price),0) AS gross_revenue, "
+            "COALESCE(SUM(s.discount),0) AS total_discount "
+            "FROM sales s WHERE s.sale_date >= :date_from AND s.sale_date <= :date_to"
+        ), {"date_from": date_from, "date_to": date_to}).mappings().one()
+
+        cogs_row = db.execute(text(
+            "SELECT COALESCE(SUM((s.quantity - s.refunded_quantity) * i.cost_price),0) AS cogs "
+            "FROM sales s JOIN items i ON i.id = s.item_id "
+            "WHERE s.sale_date >= :date_from AND s.sale_date <= :date_to"
+        ), {"date_from": date_from, "date_to": date_to}).mappings().one()
+
+        ad_spend = _date_filtered_total(db, "advertising", "expense_date", date_from, date_to)
+        other_expenses = _date_filtered_total(db, "expenses", "expense_date", date_from, date_to)
+        other_income = _date_filtered_total(db, "other_income", "income_date", date_from, date_to)
+
+        revenue = (sales_summary["gross_revenue"] or 0) - (sales_summary["total_discount"] or 0)
+        cogs = cogs_row["cogs"] or 0
+        gross_profit = revenue - cogs
+        net_profit = gross_profit + other_income - ad_spend - other_expenses
+        units_sold = sales_summary["units_sold"] or 0
+
+        message = (
+            f"📊 <b>Profit &amp; Loss — Today</b>\n"
+            f"Revenue ({units_sold} units sold): {CURRENCY}{revenue:.2f}\n"
+            f"Cost of goods sold: -{CURRENCY}{cogs:.2f}\n"
+            f"Gross profit: {CURRENCY}{gross_profit:.2f}\n"
+            f"Other income: +{CURRENCY}{other_income:.2f}\n"
+            f"Advertising spend: -{CURRENCY}{ad_spend:.2f}\n"
+            f"Other expenses: -{CURRENCY}{other_expenses:.2f}\n"
+            f"<b>Net profit/loss: {CURRENCY}{net_profit:.2f}</b>"
+        )
+        notify_telegram(db, message)
+
+
 # ---------------------------------------------------------------------------
 # Dashboard
 # ---------------------------------------------------------------------------
