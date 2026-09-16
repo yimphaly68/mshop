@@ -549,6 +549,7 @@ def items_list():
         low_stock_threshold=LOW_STOCK_THRESHOLD,
         restock_items=restock_items,
         restock_alert_threshold=RESTOCK_ALERT_THRESHOLD,
+        today=date.today().isoformat(),
     )
 
 
@@ -682,6 +683,71 @@ def item_set_rating(item_id):
     db.execute(text("UPDATE items SET star_rating = :rating WHERE id = :id"), {"rating": new_rating, "id": item_id})
     db.commit()
     return redirect(request.referrer or url_for("admin.items_list"))
+
+
+@admin_bp.route("/items/<int:item_id>/restock", methods=["POST"])
+def item_restock(item_id):
+    db = get_db()
+    item = db.execute(text("SELECT * FROM items WHERE id = :id"), {"id": item_id}).mappings().first()
+    if item is None:
+        flash("Item not found.", "danger")
+        return redirect(url_for("admin.items_list"))
+
+    qty = parse_int(request.form.get("quantity"))
+    cost = parse_float(request.form.get("cost_price"), item["cost_price"])
+    restock_date = request.form.get("restock_date") or date.today().isoformat()
+    notes = request.form.get("notes", "").strip()
+
+    if qty <= 0:
+        flash("Restock quantity must be greater than zero.", "danger")
+        return redirect(url_for("admin.items_list"))
+    if cost < 0:
+        flash("Cost price can't be negative.", "danger")
+        return redirect(url_for("admin.items_list"))
+
+    old_qty, old_cost = item["quantity"], item["cost_price"]
+    new_qty = old_qty + qty
+    # Weighted-average blend: existing stock's cost basis plus what this batch cost,
+    # proportional to how many units of each — so restocking never blindly overwrites
+    # the cost of units already on the shelf.
+    new_cost = (old_qty * old_cost + qty * cost) / new_qty
+
+    db.execute(text(
+        "INSERT INTO restocks (item_id, quantity, cost_price, restock_date, notes) "
+        "VALUES (:item_id, :quantity, :cost_price, :restock_date, :notes)"
+    ), {
+        "item_id": item_id,
+        "quantity": qty,
+        "cost_price": cost,
+        "restock_date": restock_date,
+        "notes": notes,
+    })
+    db.execute(text(
+        "UPDATE items SET quantity = :quantity, cost_price = :cost_price WHERE id = :id"
+    ), {"quantity": new_qty, "cost_price": round(new_cost, 4), "id": item_id})
+    db.commit()
+
+    flash(f"Restocked {qty} x {item['name']} — new avg cost {CURRENCY}{new_cost:.2f}.", "success")
+    notify_telegram(
+        db,
+        f"📦 <b>Restock</b>\n"
+        f"{html.escape(item['name'])}\n"
+        f"+{qty} units @ {CURRENCY}{cost:.2f}/unit (new avg cost {CURRENCY}{new_cost:.2f})"
+    )
+    return redirect(url_for("admin.items_list"))
+
+
+@admin_bp.route("/restocks")
+def restocks_list():
+    db = get_db()
+    restocks = db.execute(text(
+        "SELECT r.*, i.name AS item_name, i.size AS item_size, i.color AS item_color, "
+        "i.image_filename AS item_image "
+        "FROM restocks r JOIN items i ON i.id = r.item_id "
+        "ORDER BY r.restock_date DESC, r.id DESC"
+    )).mappings().all()
+    total_spent = sum(r["quantity"] * r["cost_price"] for r in restocks)
+    return render_template("restocks.html", restocks=restocks, total_spent=total_spent)
 
 
 # ---------------------------------------------------------------------------

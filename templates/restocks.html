@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Restock History{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3 class="mb-0">Restock History</h3>
+  <a href="{{ url_for('admin.items_list') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Back to Items</a>
+</div>
+
+<div class="card">
+  <div class="card-header d-flex justify-content-between fw-semibold">
+    <span>Every restock, oldest to newest at the bottom</span>
+    <span>Total spent: {{ CURRENCY }}{{ "%.2f"|format(total_spent) }}</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover mb-0 align-middle">
+      <thead class="table-light">
+        <tr><th>Date</th><th>Item</th><th>Qty</th><th>Cost/unit</th><th>Line total</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        {% for r in restocks %}
+        <tr>
+          <td>{{ r.restock_date }}</td>
+          <td>
+            <div class="d-flex align-items-center gap-2">
+              {% if r.item_image %}
+              <img src="{{ photo_url(r.item_image) }}" alt="{{ r.item_name }}" style="width:36px;height:36px;object-fit:cover;border-radius:6px;">
+              {% else %}
+              <div class="d-flex align-items-center justify-content-center text-muted" style="width:36px;height:36px;border-radius:6px;background:#f0f0f0;">
+                <i class="bi bi-image"></i>
+              </div>
+              {% endif %}
+              <div>
+                {{ r.item_name }}
+                {% if r.item_size or r.item_color %}
+                <div class="text-muted small">{{ r.item_size }}{% if r.item_size and r.item_color %}, {% endif %}{{ r.item_color }}</div>
+                {% endif %}
+              </div>
+            </div>
+          </td>
+          <td>{{ r.quantity }}</td>
+          <td>{{ CURRENCY }}{{ "%.2f"|format(r.cost_price) }}</td>
+          <td>{{ CURRENCY }}{{ "%.2f"|format(r.quantity * r.cost_price) }}</td>
+          <td class="text-muted small">{{ r.notes or '' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-center text-muted py-4">No restocks logged yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

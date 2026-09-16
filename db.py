@@ -132,6 +132,18 @@ users = Table(
     Column("created_at", DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")),
 )
 
+restocks = Table(
+    "restocks",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("item_id", Integer, ForeignKey("items.id", ondelete="CASCADE"), nullable=False),
+    Column("quantity", Integer, nullable=False),
+    Column("cost_price", Float, nullable=False),
+    Column("restock_date", Text, nullable=False),
+    Column("notes", Text),
+    Column("created_at", DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")),
+)
+
 
 def get_setting(conn, key, default=None):
     row = conn.execute(text("SELECT value FROM settings WHERE key = :key"), {"key": key}).mappings().first()
