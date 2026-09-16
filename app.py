@@ -63,7 +63,7 @@ def _telegram_post(token, method, payload):
     req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
     try:
         urllib.request.urlopen(req, timeout=5)
-    except (urllib.error.URLError, urllib.error.HTTPError):
+    except (urllib.error.URLError, urllib.error.HTTPError, OSError):
         pass
 
 
