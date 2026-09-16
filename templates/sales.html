@@ -10,14 +10,12 @@
     <form method="post" action="{{ url_for('admin.sale_new') }}" class="row g-2 align-items-end">
       <div class="col-md-3">
         <label class="form-label small">Item-ជ្រើសរើស ខោអាវ</label>
-        <select name="item_id" class="form-select" required onchange="fillPrice(this)">
-          <option value="">Select item...</option>
-          {% for i in items %}
-          <option value="{{ i.id }}" data-price="{{ i.sell_price }}" {{ 'disabled' if i.quantity <= 0 }}>
-            {{ i.name }}{% if i.size %} ({{ i.size }}{% if i.color %}, {{ i.color }}{% endif %}){% endif %} — {{ i.quantity }} in stock
-          </option>
-          {% endfor %}
-        </select>
+        <button type="button" class="form-control d-flex align-items-center gap-2 text-start" id="saleItemPickerBtn"
+          data-bs-toggle="modal" data-bs-target="#itemPickerModal">
+          <span class="sale-item-picker-thumb" id="saleItemPickerThumb"><i class="bi bi-image text-muted"></i></span>
+          <span id="saleItemPickerLabel" class="text-muted text-truncate">Select item...</span>
+        </button>
+        <input type="hidden" name="item_id" id="saleItemIdInput">
       </div>
       <div class="col-6 col-md-1">
         <label class="form-label small">Qty</label>
@@ -168,6 +166,55 @@
   </div>
 </div>
 
+<!-- Item picker modal (Record a Sale) -->
+<div class="modal fade" id="itemPickerModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-search me-1"></i>Choose Item</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="text" id="itemPickerSearch" class="form-control mb-3" placeholder="Search name, category, size, color...">
+        <div class="row g-2" id="itemPickerGrid">
+          {% for i in items %}
+          <div class="col-6 col-md-4 col-lg-3 item-picker-col"
+            data-name="{{ (i.name ~ ' ' ~ (i.category or '') ~ ' ' ~ (i.size or '') ~ ' ' ~ (i.color or ''))|lower }}"
+            data-item-id="{{ i.id }}" data-price="{{ i.sell_price }}"
+            data-label="{{ i.name }}{% if i.size %} ({{ i.size }}{% if i.color %}, {{ i.color }}{% endif %}){% endif %}"
+            data-photo="{{ photo_url(i.image_filename) or '' }}"
+            data-out-of-stock="{{ '1' if i.quantity <= 0 else '0' }}">
+            <div class="card item-card h-100">
+              <div class="item-photo-wrap">
+                {% if i.image_filename %}
+                <img src="{{ photo_url(i.image_filename) }}" class="item-photo" alt="{{ i.name }}">
+                {% else %}
+                <div class="item-photo item-photo-placeholder"><i class="bi bi-image"></i></div>
+                {% endif %}
+                {% if i.quantity <= 0 %}
+                <span class="badge bg-danger stock-badge">Out of stock</span>
+                {% else %}
+                <span class="badge bg-success stock-badge">{{ i.quantity }} left</span>
+                {% endif %}
+              </div>
+              <div class="card-body p-2">
+                <div class="small fw-semibold text-truncate">{{ i.name }}</div>
+                <div class="text-muted small text-truncate">
+                  {% if i.size %}{{ i.size }}{% endif %}{% if i.color %}{{ ', ' if i.size }}{{ i.color }}{% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+          {% else %}
+          <p class="text-muted text-center py-4 w-100">No items yet.</p>
+          {% endfor %}
+        </div>
+        <p id="itemPickerNoResults" class="text-muted text-center py-4" hidden>No items match your search.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Refund modal -->
 <div class="modal fade" id="refundModal" tabindex="-1">
   <div class="modal-dialog">
@@ -282,11 +329,44 @@
 </div>
 
 <script>
-function fillPrice(sel) {
-  const opt = sel.options[sel.selectedIndex];
-  const price = opt.getAttribute('data-price');
-  if (price) document.getElementById('salePriceInput').value = price;
-}
+document.querySelectorAll('#itemPickerGrid .item-picker-col').forEach(function (col) {
+  if (col.getAttribute('data-out-of-stock') === '1') return;
+  col.addEventListener('click', function () {
+    document.getElementById('saleItemIdInput').value = col.getAttribute('data-item-id');
+    const labelEl = document.getElementById('saleItemPickerLabel');
+    labelEl.textContent = col.getAttribute('data-label');
+    labelEl.classList.remove('text-muted');
+    const photo = col.getAttribute('data-photo');
+    document.getElementById('saleItemPickerThumb').innerHTML = photo
+      ? '<img src="' + photo + '" alt="">'
+      : '<i class="bi bi-image text-muted"></i>';
+    const price = col.getAttribute('data-price');
+    if (price) document.getElementById('salePriceInput').value = price;
+    bootstrap.Modal.getInstance(document.getElementById('itemPickerModal')).hide();
+  });
+});
+
+const itemPickerModalEl = document.getElementById('itemPickerModal');
+const itemPickerSearch = document.getElementById('itemPickerSearch');
+const itemPickerNoResults = document.getElementById('itemPickerNoResults');
+
+itemPickerModalEl.addEventListener('shown.bs.modal', function () {
+  itemPickerSearch.value = '';
+  document.querySelectorAll('#itemPickerGrid .item-picker-col').forEach(function (col) { col.hidden = false; });
+  itemPickerNoResults.hidden = true;
+  itemPickerSearch.focus();
+});
+
+itemPickerSearch.addEventListener('input', function () {
+  const q = this.value.trim().toLowerCase();
+  let anyVisible = false;
+  document.querySelectorAll('#itemPickerGrid .item-picker-col').forEach(function (col) {
+    const match = col.getAttribute('data-name').includes(q);
+    col.hidden = !match;
+    if (match) anyVisible = true;
+  });
+  itemPickerNoResults.hidden = anyVisible;
+});
 
 function fillExchangePrice(sel) {
   const opt = sel.options[sel.selectedIndex];

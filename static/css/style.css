@@ -98,6 +98,36 @@ body {
   left: 8px;
 }
 
+.sale-item-picker-thumb {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f0f0f0;
+}
+
+.sale-item-picker-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.item-picker-col[data-out-of-stock="1"] {
+  pointer-events: none;
+}
+
+.item-picker-col[data-out-of-stock="1"] .item-card {
+  opacity: 0.45;
+}
+
+.item-picker-col:not([data-out-of-stock="1"]) .item-card {
+  cursor: pointer;
+}
+
 .stock-badge {
   position: absolute;
   top: 8px;
