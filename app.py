@@ -1135,6 +1135,34 @@ def expense_new():
     return redirect(url_for("admin.expenses_list"))
 
 
+@admin_bp.route("/expenses/<int:expense_id>/edit", methods=["POST"])
+def expense_edit(expense_id):
+    db = get_db()
+    expense = db.execute(text("SELECT * FROM expenses WHERE id = :id"), {"id": expense_id}).mappings().first()
+    if not expense:
+        flash("Expense not found.", "danger")
+        return redirect(url_for("admin.expenses_list"))
+
+    amount = parse_float(request.form.get("amount"), expense["amount"])
+    if amount <= 0:
+        flash("Amount must be greater than zero — not updated.", "danger")
+        return redirect(url_for("admin.expenses_list"))
+
+    db.execute(text(
+        "UPDATE expenses SET expense_date=:expense_date, category=:category, "
+        "description=:description, amount=:amount WHERE id=:id"
+    ), {
+        "expense_date": request.form.get("expense_date") or expense["expense_date"],
+        "category": request.form.get("category", "").strip(),
+        "description": request.form.get("description", "").strip(),
+        "amount": amount,
+        "id": expense_id,
+    })
+    db.commit()
+    flash("Expense updated.", "success")
+    return redirect(url_for("admin.expenses_list"))
+
+
 @admin_bp.route("/expenses/<int:expense_id>/delete", methods=["POST"])
 @admin_required
 def expense_delete(expense_id):
